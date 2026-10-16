@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Aviso, Botao, Campo, Cartao, Ficha, Fichas, Interruptor, Texto } from '@/components/ui';
@@ -14,10 +14,13 @@ export function FormularioGrupo({
   inicial,
   tituloBotao,
   aoSalvar,
+  previaAbatimento,
 }: {
   inicial?: NovoGrupo;
   tituloBotao: string;
   aoSalvar: (g: NovoGrupo) => Promise<void>;
+  // num grupo que já existe, mostra como os saldos ficam antes de trocar o abatimento
+  previaAbatimento?: (abatimento: boolean) => ReactNode;
 }) {
   const tema = useTema();
   const [nome, setNome] = useState(inicial?.nome ?? '');
@@ -83,6 +86,7 @@ export function FormularioGrupo({
           valor={abatimento}
           aoMudar={setAbatimento}
         />
+        {inicial && previaAbatimento && abatimento !== inicial.abatimento ? previaAbatimento(abatimento) : null}
       </Cartao>
 
       <View style={{ gap: espaco.m }}>

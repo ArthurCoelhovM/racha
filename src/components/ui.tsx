@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { coresGrupo, corDaPessoa, espaco, larguraMaxima, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
+import { mascaraDinheiro } from '@/lib/dinheiro';
 
 // ---------- Texto ----------
 
@@ -226,6 +227,24 @@ export function Campo({
       ) : null}
       {!erro && dica ? <Texto variante="suave">{dica}</Texto> : null}
     </View>
+  );
+}
+
+// Campo de dinheiro com máscara: a pessoa digita só números e os centavos entram sozinhos
+export function CampoDinheiro({
+  value,
+  onChangeText,
+  ...props
+}: Omit<TextInputProps, 'keyboardType' | 'inputMode'> & { rotulo?: string; erro?: string | null; dica?: string }) {
+  return (
+    <Campo
+      placeholder="0,00"
+      {...props}
+      value={value}
+      onChangeText={(texto) => onChangeText?.(mascaraDinheiro(texto))}
+      keyboardType="number-pad"
+      inputMode="numeric"
+    />
   );
 }
 

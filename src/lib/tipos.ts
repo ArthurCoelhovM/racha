@@ -11,7 +11,6 @@ export const TIPOS_DIVISAO: { tipo: TipoDivisao; nome: string; dica: string }[] 
 export type Perfil = {
   id: string;
   nome: string;
-  email: string | null;
 };
 
 export type Grupo = {
@@ -63,25 +62,6 @@ export type Gasto = {
   divisoes: { usuario_id: string; parametro: string | null; valor: string }[];
 };
 
-export type Divida = {
-  id: string;
-  gasto_id: string;
-  devedor: string;
-  credor: string;
-  valor: string;
-};
-
-export type Pagamento = {
-  id: string;
-  de: string;
-  para: string;
-  valor: string;
-  valor_cobrado: string;
-  gasto_id: string | null;
-  marcado_por: string;
-  criado_em: string;
-};
-
 export type RegistroHistorico = {
   id: number;
   usuario_id: string | null;
@@ -96,7 +76,15 @@ export type RegistroHistorico = {
 export type Aviso = {
   id: number;
   grupo_id: string | null;
-  tipo: 'gasto_novo' | 'pagamento' | 'membro' | 'lembrete' | 'recorrente_parado';
+  tipo:
+    | 'gasto_novo'
+    | 'gasto_editado'
+    | 'gasto_excluido'
+    | 'pagamento'
+    | 'membro'
+    | 'grupo'
+    | 'lembrete'
+    | 'recorrente_parado';
   titulo: string;
   corpo: string;
   dados: Record<string, unknown> | null;

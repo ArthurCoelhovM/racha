@@ -7,6 +7,54 @@ const hostsExtras = (Deno.env.get('NFCE_HOSTS_EXTRAS') ?? '')
   .split(',')
   .map((h) => h.trim())
   .filter(Boolean);
+const urlSupabase = Deno.env.get('SUPABASE_URL') ?? '';
+const chaveAnon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+// páginas de NFC-e têm poucas dezenas de KB; acima disso é erro ou abuso
+const LIMITE_BYTES = 2 * 1024 * 1024;
+
+// cada pessoa pode ler até 10 cupons a cada 10 minutos (conferido no banco, com o login de quem chamou)
+async function conferirLimite(req: Request): Promise<{ erro: string; status: number } | null> {
+  const chave = chaveAnon || req.headers.get('apikey') || '';
+  if (!urlSupabase || !chave) return null;
+  const autorizacao = req.headers.get('Authorization');
+  if (!autorizacao) return { erro: 'Faça login para ler o cupom.', status: 401 };
+  const r = await fetch(`${urlSupabase}/rest/v1/rpc/registrar_leitura_nfce`, {
+    method: 'POST',
+    headers: { apikey: chave, Authorization: autorizacao, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  if (r.ok) return null;
+  const corpo = await r.json().catch(() => null);
+  const mensagem = typeof corpo?.message === 'string' ? corpo.message : '';
+  if (mensagem.startsWith('Muitas leituras')) return { erro: mensagem, status: 429 };
+  return { erro: 'Faça login para ler o cupom.', status: 401 };
+}
+
+async function lerCorpo(r: Response): Promise<ArrayBuffer> {
+  if (Number(r.headers.get('content-length') ?? 0) > LIMITE_BYTES) throw new Error('grande-demais');
+  const leitor = r.body?.getReader();
+  if (!leitor) return new ArrayBuffer(0);
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    total += value.length;
+    if (total > LIMITE_BYTES) {
+      await leitor.cancel();
+      throw new Error('grande-demais');
+    }
+    partes.push(value);
+  }
+  const junto = new Uint8Array(total);
+  let posicao = 0;
+  for (const parte of partes) {
+    junto.set(parte, posicao);
+    posicao += parte.length;
+  }
+  return junto.buffer;
+}
 
 // alguns estados ainda respondem em ISO-8859-1
 function decodificar(bytes: ArrayBuffer, tipo: string | null): string {
@@ -62,6 +110,9 @@ Deno.serve(async (req) => {
   const url = validarUrlNfce(String(corpo?.url ?? ''), hostsExtras);
   if (!url) return resposta({ erro: 'Esse QR code não parece ser de uma NFC-e.' }, 400);
 
+  const bloqueio = await conferirLimite(req);
+  if (bloqueio) return resposta({ erro: bloqueio.erro }, bloqueio.status);
+
   const controle = new AbortController();
   const tempo = setTimeout(() => controle.abort(), 20000);
   try {
@@ -72,7 +123,7 @@ Deno.serve(async (req) => {
         502,
       );
     }
-    const nota = lerNfce(decodificar(await r.arrayBuffer(), r.headers.get('content-type')));
+    const nota = lerNfce(decodificar(await lerCorpo(r), r.headers.get('content-type')));
     if (nota.itens.length === 0) {
       return resposta(
         {
@@ -84,8 +135,15 @@ Deno.serve(async (req) => {
     return resposta(nota);
   } catch (e) {
     const demorou = e instanceof DOMException && e.name === 'AbortError';
+    const grande = e instanceof Error && e.message === 'grande-demais';
     return resposta(
-      { erro: demorou ? 'O site da Sefaz demorou demais. Tente de novo.' : 'Não deu para consultar a nota agora.' },
+      {
+        erro: demorou
+          ? 'O site da Sefaz demorou demais. Tente de novo.'
+          : grande
+            ? 'A página da nota veio grande demais. Dá para digitar os itens.'
+            : 'Não deu para consultar a nota agora.',
+      },
       502,
     );
   } finally {

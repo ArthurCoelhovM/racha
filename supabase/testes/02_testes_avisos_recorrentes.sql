@@ -94,8 +94,8 @@ declare
   fabio uuid := '00000000-0000-0000-0000-0000000000f1';
   ape uuid := (select id from public.grupos where nome = 'Apê');
 begin
-  assert (select total from public.dividas_em_aberto() where grupo_id = ape and usuario_id = fabio) = 15.005,
-    'Fábio deve só a água';
+  assert (select total from public.dividas_em_aberto() where grupo_id = ape and usuario_id = fabio) = 15.01,
+    'Fábio deve só a água, já no valor de cobrança';
   assert public.gerar_lembretes() = 0, 'dívida recente ainda não gera lembrete';
 
   update public.gastos set criado_em = now() - interval '2 days' where grupo_id = ape;
@@ -120,7 +120,7 @@ select set_config('request.jwt.claim.sub', :'eva', false) \g /dev/null
 
 select jsonb_build_object(
   'grupo_id', :'ape', 'descricao', 'Internet', 'valor_total', 120, 'tipo_divisao', 'igual',
-  'data', current_date - 7,
+  'data', public.hoje_sp() - 7,
   'pagadores', jsonb_build_array(jsonb_build_object('usuario_id', :'eva', 'valor', 120)),
   'divisoes', jsonb_build_array(
     jsonb_build_object('usuario_id', :'eva', 'valor', 60),
@@ -136,8 +136,8 @@ declare
   rec uuid := (select id from public.recorrentes where descricao = 'Internet');
 begin
   assert (select count(*) from public.gastos where recorrente_id = rec) = 2, 'o primeiro e o de hoje';
-  assert (select count(*) from public.gastos where recorrente_id = rec and data = current_date) = 1, 'lançado com a data certa';
-  assert (select proxima_data from public.recorrentes where id = rec) = current_date + 7, 'próxima em 7 dias';
+  assert (select count(*) from public.gastos where recorrente_id = rec and data = public.hoje_sp()) = 1, 'lançado com a data certa';
+  assert (select proxima_data from public.recorrentes where id = rec) = public.hoje_sp() + 7, 'próxima em 7 dias';
   assert public.lancar_meus_recorrentes() = 0, 'não lança duas vezes';
   assert (select count(*) from public.avisos where tipo = 'gasto_novo' and corpo like 'Gasto recorrente lançado: R$ 120,00%') = 1,
     'Eva também é avisada do lançamento automático';
@@ -155,7 +155,7 @@ select set_config('request.jwt.claim.sub', :'fabio', false) \g /dev/null
 select public.sair_do_grupo(:'ape') \g /dev/null
 
 reset role;
-update public.recorrentes set proxima_data = current_date where id = :'rec';
+update public.recorrentes set proxima_data = public.hoje_sp() where id = :'rec';
 select public.lancar_recorrentes() \g /dev/null
 do $$
 declare

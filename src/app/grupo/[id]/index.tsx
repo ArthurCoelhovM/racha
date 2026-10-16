@@ -21,40 +21,43 @@ import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
 import {
   buscarGrupo,
+  contarGastos,
   desfazerPagamento,
   lancarMeusRecorrentes,
-  listarDividas,
   listarGastos,
   listarHistorico,
   listarMembros,
-  listarPagamentos,
+  listarPendencias,
   listarRecorrentes,
   marcarPago,
   mensagemDeErro,
+  ehForaDoGrupo,
   pararRecorrente,
 } from '@/lib/api';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
 import { dec, Decimal, ehExato, ehZero, reais, reaisCobrar, reaisExato } from '@/lib/dinheiro';
 import { diaCurto, isoParaBr, momento } from '@/lib/formatos';
-import { calcularPendencias, resumoDoUsuario, type Pendencia } from '@/lib/saldos';
+import { resumoDoUsuario, saldoDaPessoa, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
 import type { Gasto, Membro, Recorrente, RegistroHistorico } from '@/lib/tipos';
 
 type Aba = 'dividas' | 'gastos' | 'historico';
 type Visao = 'lista' | 'pessoas' | 'grafico';
 
-async function carregarTudo(id: string) {
+const POR_PAGINA = 30;
+
+async function carregarTudo(id: string, limite: number) {
   await lancarMeusRecorrentes();
-  const [grupo, membros, gastos, dividas, pagamentos, historico, recorrentes] = await Promise.all([
+  const [grupo, membros, pendencias, gastos, totalGastos, historico, recorrentes] = await Promise.all([
     buscarGrupo(id),
     listarMembros(id),
-    listarGastos(id),
-    listarDividas(id),
-    listarPagamentos(id),
+    listarPendencias(id),
+    listarGastos(id, limite),
+    contarGastos(id),
     listarHistorico(id),
     listarRecorrentes(id),
   ]);
-  return { grupo, membros, gastos, dividas, pagamentos, historico, recorrentes };
+  return { grupo, membros, pendencias, gastos, totalGastos, historico, recorrentes };
 }
 
 export default function TelaGrupo() {
@@ -62,11 +65,16 @@ export default function TelaGrupo() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { usuarioId } = useSessao();
   const eu = usuarioId ?? '';
-  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(() => carregarTudo(id), id);
+  const [limite, setLimite] = useState(POR_PAGINA);
+  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(
+    () => carregarTudo(id, limite),
+    `${id}|${limite}`,
+  );
   const [aba, setAba] = useState<Aba>('dividas');
   const [visao, setVisao] = useState<Visao>('lista');
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string } | null>(null);
   const [marcando, setMarcando] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
 
   const nomes = useMemo(() => {
     const mapa = new Map<string, string>();
@@ -74,15 +82,27 @@ export default function TelaGrupo() {
     return mapa;
   }, [dados?.membros]);
 
-  const pendencias = useMemo(() => {
-    if (!dados) return [];
-    return calcularPendencias(dados.grupo.abatimento, dados.dividas, dados.pagamentos, dados.gastos);
-  }, [dados]);
-
   if (carregando) return <Carregando />;
-  if (!dados) return <Tela>{erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}</Tela>;
+  if (!dados) {
+    return (
+      <Tela>
+        <Stack.Screen options={{ title: 'Grupo' }} />
+        {ehForaDoGrupo(erro) ? (
+          <>
+            <Vazio
+              titulo="Você não está mais neste grupo"
+              texto="Ele saiu da sua lista. Peça um convite novo para voltar."
+            />
+            <Botao titulo="Ver meus grupos" aoPressionar={() => router.dismissTo('/')} />
+          </>
+        ) : erro ? (
+          <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} />
+        ) : null}
+      </Tela>
+    );
+  }
 
-  const { grupo, membros, gastos, historico, recorrentes } = dados;
+  const { grupo, membros, pendencias, gastos, totalGastos, historico, recorrentes } = dados;
   const nome = (u: string) => (u === eu ? 'Você' : (nomes.get(u) ?? 'Alguém'));
   const { voceDeve, teDevem } = resumoDoUsuario(pendencias, eu);
 
@@ -95,8 +115,21 @@ export default function TelaGrupo() {
       recarregar();
     } catch (e) {
       setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+      recarregar();
     } finally {
       setMarcando(null);
+    }
+  }
+
+  async function exportar() {
+    setExportando(true);
+    try {
+      const todos = await listarGastos(grupo.id);
+      await exportarCsv(`${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`, gastosEmCsv(todos, nomes));
+    } catch (e) {
+      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+    } finally {
+      setExportando(false);
     }
   }
 
@@ -202,7 +235,7 @@ export default function TelaGrupo() {
         <Abas
           opcoes={[
             ['dividas', 'Dívidas'],
-            ['gastos', `Gastos (${gastos.length})`],
+            ['gastos', `Gastos (${totalGastos})`],
             ['historico', 'Histórico'],
           ]}
           valor={aba}
@@ -293,15 +326,19 @@ export default function TelaGrupo() {
                     </View>
                   ))}
                 </Cartao>
+                {gastos.length < totalGastos ? (
+                  <Botao
+                    titulo={`Ver mais gastos (${totalGastos - gastos.length})`}
+                    variante="texto"
+                    carregando={atualizando}
+                    aoPressionar={() => setLimite(limite + POR_PAGINA)}
+                  />
+                ) : null}
                 <Botao
                   titulo="Exportar gastos em CSV"
                   variante="secundario"
-                  aoPressionar={() =>
-                    exportarCsv(
-                      `${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`,
-                      gastosEmCsv(gastos, nomes),
-                    ).catch((e) => setAviso({ texto: mensagemDeErro(e), tipo: 'erro' }))
-                  }
+                  carregando={exportando}
+                  aoPressionar={exportar}
                 />
               </>
             )}
@@ -413,14 +450,12 @@ function SaldosPorPessoa({
 }) {
   const tema = useTema();
   const saldos = membros
-    .map((m) => {
-      let saldo = new Decimal(0);
-      for (const p of pendencias) {
-        if (p.credor === m.usuario_id) saldo = saldo.plus(p.cobrar);
-        if (p.devedor === m.usuario_id) saldo = saldo.minus(p.cobrar);
-      }
-      return { id: m.usuario_id, nome: nome(m.usuario_id), saldo, ativo: m.ativo };
-    })
+    .map((m) => ({
+      id: m.usuario_id,
+      nome: nome(m.usuario_id),
+      saldo: saldoDaPessoa(pendencias, m.usuario_id),
+      ativo: m.ativo,
+    }))
     .filter((s) => s.ativo || !ehZero(s.saldo))
     .sort((a, b) => b.saldo.comparedTo(a.saldo));
 
@@ -560,15 +595,19 @@ function descreverHistorico(r: RegistroHistorico, nome: (u: string) => string): 
       const texto = `${nome(String(dados.de))} pagou ${reais(String(dados.valor_cobrado))} a ${nome(String(dados.para))}`;
       return r.acao === 'insert' ? `${quem} marcou: ${texto}` : `${quem} desfez: ${texto}`;
     }
-    case 'membros':
-      if (r.acao === 'insert') return `${nome(String(depois.usuario_id))} entrou no grupo`;
-      return depois.ativo
-        ? `${nome(String(depois.usuario_id))} voltou ao grupo`
-        : `${nome(String(depois.usuario_id))} saiu do grupo`;
+    case 'membros': {
+      const pessoa = nome(String(depois.usuario_id));
+      if (r.acao === 'insert') return `${pessoa} entrou no grupo`;
+      if (antes.ativo !== depois.ativo) return depois.ativo ? `${pessoa} voltou ao grupo` : `${pessoa} saiu do grupo`;
+      if (depois.papel === 'dono') return `${pessoa} passou a ser dono do grupo`;
+      return `${pessoa} deixou de ser dono do grupo`;
+    }
     case 'grupos':
       if (antes.abatimento !== depois.abatimento) {
         return `${quem} ${depois.abatimento ? 'ligou' : 'desligou'} o abatimento`;
       }
+      if (antes.codigo_convite !== depois.codigo_convite) return `${quem} gerou um novo código de convite`;
+      if (antes.nome !== depois.nome) return `${quem} mudou o nome do grupo para "${depois.nome}"`;
       return `${quem} mudou as configurações do grupo`;
     default:
       return `${quem} fez uma alteração`;

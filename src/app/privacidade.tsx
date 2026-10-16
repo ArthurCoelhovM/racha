@@ -22,7 +22,7 @@ const secoes: { titulo: string; texto: string[] }[] = [
   {
     titulo: 'Quem vê',
     texto: [
-      'As pessoas dos grupos em que você está veem seu nome e os gastos daquele grupo. Ninguém de fora do grupo vê nada.',
+      'As pessoas dos grupos em que você está veem seu nome e os gastos daquele grupo, mas não o seu e-mail. Ninguém de fora do grupo vê nada.',
       'O app não tem anúncios, não vende dados e não usa rastreamento.',
     ],
   },

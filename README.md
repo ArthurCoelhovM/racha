@@ -52,6 +52,11 @@ public/                  manifesto e ícones da versão web
    - `20261016000000_esquema_inicial.sql`
    - `20261016150000_avisos_lembretes_recorrentes.sql`
    - `20261016150100_agendamentos.sql` (agenda os lembretes e os recorrentes com pg_cron; se der erro de extensão, ative **pg_cron** em **Database > Extensions** e rode de novo)
+   - `20261016170000_push_conta_convite.sql`
+   - `20261016200000_correcoes_da_revisao.sql`
+   - `20261016200100_agendamentos_limpeza.sql` (limpeza mensal de avisos antigos, também com pg_cron)
+
+   Se você já tinha rodado os primeiros, rode só os que faltam, na ordem. Com a CLI, `npx supabase db push` faz isso sozinho.
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email**. O envio de e-mail padrão do Supabase só entrega para pessoas da equipe do projeto e no máximo 2 por hora, então seus amigos não receberiam a confirmação. Para recuperar senha por e-mail, configure um SMTP próprio (Brevo e Resend têm plano grátis) em **Authentication > Emails > SMTP Settings**.
 4. Em **Authentication > URL Configuration**, coloque o endereço da versão web em **Site URL** e adicione `https://SEU-ENDERECO/**` em **Redirect URLs**.
 5. Copie a URL do projeto e a **publishable key** (botão **Connect** ou **Project Settings > API Keys**).

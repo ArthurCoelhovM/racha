@@ -21,7 +21,10 @@ export default function Avisos() {
 
   const corDoTipo: Record<Aviso['tipo'], string> = {
     gasto_novo: tema.primaria,
+    gasto_editado: tema.aviso,
+    gasto_excluido: tema.negativo,
     pagamento: tema.positivo,
+    grupo: tema.aviso,
     membro: tema.textoSuave,
     lembrete: tema.aviso,
     recorrente_parado: tema.negativo,

@@ -1,16 +1,15 @@
 import type { Nota } from './cupom';
 import type { Decimal } from './dinheiro';
 import type { Parte, Pagador } from './divisao';
+import { lerPendencias, type Pendencia, type PendenciaBanco } from './saldos';
 import { supabase } from './supabase';
 import type {
   Aviso,
-  Divida,
   Frequencia,
   Gasto,
   Grupo,
   Item,
   Membro,
-  Pagamento,
   Recorrente,
   RegistroHistorico,
   ResumoGrupo,
@@ -27,6 +26,7 @@ export function mensagemDeErro(erro: unknown): string {
   }
   if (/permission denied|row-level security/i.test(texto)) return 'Você não tem permissão para fazer isso.';
   if (/JWT expired/i.test(texto)) return 'Sua sessão expirou. Entre de novo.';
+  if (/multiple \(or no\) rows returned|0 rows/i.test(texto)) return 'Não encontrei isso. Talvez tenha sido excluído.';
   return texto;
 }
 
@@ -39,34 +39,64 @@ export async function listarMeusGrupos(): Promise<ResumoGrupo[]> {
   return checar(await supabase.rpc('resumo_meus_grupos')) as ResumoGrupo[];
 }
 
+export const NAO_PARTICIPA = 'Você não participa mais deste grupo, ou ele não existe.';
+
+// o banco e a busca do grupo dizem "não participa" de jeitos um pouco diferentes
+export function ehForaDoGrupo(erro: string | null): boolean {
+  return !!erro && /não participa/i.test(erro);
+}
+
 export async function buscarGrupo(id: string): Promise<Grupo> {
-  return checar(await supabase.from('grupos').select('*').eq('id', id).single()) as Grupo;
+  const grupo = checar(await supabase.from('grupos').select('*').eq('id', id).maybeSingle()) as Grupo | null;
+  if (!grupo) throw new Error(NAO_PARTICIPA);
+  return grupo;
 }
 
 export async function listarMembros(grupoId: string): Promise<Membro[]> {
   const dados = checar(
     await supabase
       .from('membros')
-      .select('usuario_id, papel, ativo, perfil:perfis(id, nome, email)')
+      .select('usuario_id, papel, ativo, perfil:perfis(id, nome)')
       .eq('grupo_id', grupoId)
       .order('entrou_em'),
   ) as unknown as Membro[];
-  return dados.map((m) => ({ ...m, perfil: m.perfil ?? { id: m.usuario_id, nome: 'Alguém', email: null } }));
+  return dados.map((m) => ({ ...m, perfil: m.perfil ?? { id: m.usuario_id, nome: 'Alguém' } }));
 }
 
-export async function listarGastos(grupoId: string): Promise<Gasto[]> {
-  return checar(
-    await supabase
-      .from('gastos')
-      .select(
-        'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, ' +
-          'pagadores:gasto_pagadores(usuario_id, valor::text), ' +
-          'divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)',
-      )
-      .eq('grupo_id', grupoId)
-      .order('data', { ascending: false })
-      .order('criado_em', { ascending: false }),
-  ) as unknown as Gasto[];
+// sem limite traz todos (para o CSV); a tela do grupo pede de 30 em 30
+export async function listarGastos(grupoId: string, limite?: number): Promise<Gasto[]> {
+  let consulta = supabase
+    .from('gastos')
+    .select(
+      'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, ' +
+        'pagadores:gasto_pagadores(usuario_id, valor::text), ' +
+        'divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)',
+    )
+    .eq('grupo_id', grupoId)
+    .order('data', { ascending: false })
+    .order('criado_em', { ascending: false });
+  if (limite) consulta = consulta.limit(limite);
+  return checar(await consulta) as unknown as Gasto[];
+}
+
+export async function contarGastos(grupoId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('gastos')
+    .select('id', { count: 'exact', head: true })
+    .eq('grupo_id', grupoId);
+  if (error) throw new Error(mensagemDeErro(error));
+  return count ?? 0;
+}
+
+// p_abatimento serve para simular o grupo com o abatimento trocado, sem mudar nada
+export async function listarPendencias(grupoId: string, abatimento?: boolean): Promise<Pendencia[]> {
+  const linhas = checar(
+    await supabase.rpc('pendencias_do_grupo', {
+      p_grupo: grupoId,
+      ...(abatimento === undefined ? {} : { p_abatimento: abatimento }),
+    }),
+  ) as PendenciaBanco[];
+  return lerPendencias(linhas);
 }
 
 export async function buscarGasto(id: string): Promise<Gasto> {
@@ -81,22 +111,6 @@ export async function buscarGasto(id: string): Promise<Gasto> {
       .eq('id', id)
       .single(),
   ) as unknown as Gasto;
-}
-
-export async function listarDividas(grupoId: string): Promise<Divida[]> {
-  return checar(
-    await supabase.from('dividas').select('id, gasto_id, devedor, credor, valor::text').eq('grupo_id', grupoId),
-  ) as unknown as Divida[];
-}
-
-export async function listarPagamentos(grupoId: string): Promise<Pagamento[]> {
-  return checar(
-    await supabase
-      .from('pagamentos')
-      .select('id, de, para, valor::text, valor_cobrado::text, gasto_id, marcado_por, criado_em')
-      .eq('grupo_id', grupoId)
-      .order('criado_em', { ascending: false }),
-  ) as unknown as Pagamento[];
 }
 
 export async function listarHistorico(grupoId: string): Promise<RegistroHistorico[]> {
@@ -271,7 +285,7 @@ export async function marcarAvisosLidos(): Promise<void> {
 }
 
 export async function excluirGasto(id: string): Promise<void> {
-  checar(await supabase.from('gastos').delete().eq('id', id));
+  checar(await supabase.rpc('excluir_gasto', { p_id: id }));
 }
 
 export async function marcarPago(
@@ -300,11 +314,11 @@ export async function atualizarMeuNome(id: string, nome: string): Promise<void> 
   checar(await supabase.from('perfis').update({ nome }).eq('id', id));
 }
 
+// o e-mail vem da sessão; no banco cada pessoa só lê id e nome
 export async function buscarMeuPerfil(id: string) {
-  return checar(await supabase.from('perfis').select('id, nome, email').eq('id', id).single()) as {
+  return checar(await supabase.from('perfis').select('id, nome').eq('id', id).single()) as {
     id: string;
     nome: string;
-    email: string | null;
   };
 }
 

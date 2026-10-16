@@ -240,8 +240,12 @@ begin
 end $$;
 
 set role authenticated;
+-- só quem registrou (Ana) ou o dono exclui; Bia não pode
 select set_config('request.jwt.claim.sub', :'bia', false) \g /dev/null
-delete from public.gastos where id = :'gasto1';
+select testes.deve_falhar(format('select public.excluir_gasto(%L)', :'gasto1'), 'Só quem registrou') \g /dev/null
+select testes.deve_falhar(format('delete from public.gastos where id = %L', :'gasto1'), 'permission denied') \g /dev/null
+select set_config('request.jwt.claim.sub', :'ana', false) \g /dev/null
+select public.excluir_gasto(:'gasto1') \g /dev/null
 
 reset role;
 do $$

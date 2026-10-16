@@ -16,13 +16,14 @@ export function dec(valor: Decimal.Value | null | undefined): Decimal {
   }
 }
 
-// aceita "1.234,56", "1234,56", "1234.56" e "R$ 12"
+// aceita "1.234,56", "1234,56", "R$ 12" e "99.90".
+// Ponto seguido de grupos de 3 dígitos é milhar, como se escreve no Brasil: "1.500" é mil e quinhentos.
 export function lerValor(texto: string): Decimal | null {
   let limpo = texto.replace(/[R$\s]/g, '');
   if (!limpo) return null;
   if (limpo.includes(',')) {
     limpo = limpo.replace(/\./g, '').replace(',', '.');
-  } else if ((limpo.match(/\./g) || []).length > 1) {
+  } else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(limpo) || (limpo.match(/\./g) || []).length > 1) {
     limpo = limpo.replace(/\./g, '');
   }
   if (!/^-?\d*\.?\d*$/.test(limpo) || limpo === '.' || limpo === '-') return null;
@@ -61,9 +62,17 @@ export function ehExato(valor: Decimal.Value): boolean {
   return d.toDecimalPlaces(2).minus(d).abs().lte(EPS);
 }
 
-// texto para colocar de volta num campo
+// texto para colocar de volta num campo de dinheiro, no mesmo formato da máscara: "1.500,00"
 export function paraCampo(valor: Decimal.Value): string {
-  return dec(valor).toDecimalPlaces(2).toFixed(2).replace('.', ',');
+  return formatador.format(Number(dec(valor).toDecimalPlaces(2).toString()));
+}
+
+// Máscara de moeda: só os dígitos contam e os dois últimos são os centavos.
+// Digitar 1 5 0 0 0 0 mostra "1.500,00". Campo vazio continua vazio.
+export function mascaraDinheiro(texto: string): string {
+  const digitos = texto.replace(/\D/g, '').replace(/^0+/, '').slice(0, 12);
+  if (!digitos) return '';
+  return paraCampo(new Decimal(digitos).div(100));
 }
 
 const formatadorExato = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });

@@ -7,6 +7,7 @@ import {
   Avatar,
   Botao,
   Campo,
+  CampoDinheiro,
   Carregando,
   Cartao,
   CoresDoGrupo,
@@ -58,7 +59,13 @@ export default function TelaGasto() {
         listarMembros(id),
         gastoId ? buscarGasto(gastoId) : Promise.resolve(null),
       ]);
-      return { grupo, membros: membros.filter((m) => m.ativo), todos: membros, gasto };
+      // quem já estava no gasto continua no formulário, mesmo que tenha saído do grupo
+      const noGasto = new Set<string>([
+        ...(gasto?.pagadores ?? []).map((p) => p.usuario_id),
+        ...(gasto?.divisoes ?? []).map((d) => d.usuario_id),
+        ...(gasto?.itens ?? []).flatMap((i) => i.participantes),
+      ]);
+      return { grupo, membros: membros.filter((m) => m.ativo || noGasto.has(m.usuario_id)), todos: membros, gasto };
     },
     `${id}|${gastoId ?? ''}`,
   );
@@ -105,7 +112,15 @@ function Formulario({
 }) {
   const tema = useTema();
   const ids = membros.map((m) => m.usuario_id);
-  const nome = (u: string) => (u === eu ? 'Você' : (membros.find((m) => m.usuario_id === u)?.perfil.nome ?? 'Alguém'));
+  const ativos = membros.filter((m) => m.ativo).map((m) => m.usuario_id);
+  const nome = (u: string) => {
+    if (u === eu) return 'Você';
+    const membro = membros.find((m) => m.usuario_id === u);
+    const base = membro?.perfil.nome || 'Alguém';
+    return membro && !membro.ativo ? `${base} (saiu)` : base;
+  };
+  const souDono = membros.some((m) => m.usuario_id === eu && m.ativo && m.papel === 'dono');
+  const podeExcluir = !!gasto && (gasto.criado_por === eu || souDono);
   const permitidos = grupo.divisoes_permitidas;
   const tipoDoGasto = gasto?.tipo_divisao;
 
@@ -115,7 +130,9 @@ function Formulario({
 
   const variosNoInicio = (gasto?.pagadores.length ?? 0) > 1;
   const [varios, setVarios] = useState(variosNoInicio);
-  const [pagadorUnico, setPagadorUnico] = useState(gasto?.pagadores[0]?.usuario_id ?? (ids.includes(eu) ? eu : ids[0]));
+  const [pagadorUnico, setPagadorUnico] = useState(
+    gasto?.pagadores[0]?.usuario_id ?? (ativos.includes(eu) ? eu : ativos[0]),
+  );
   const [valoresPagos, setValoresPagos] = useState<Record<string, string>>(() =>
     variosNoInicio ? Object.fromEntries(gasto!.pagadores.map((p) => [p.usuario_id, paraCampo(p.valor)])) : {},
   );
@@ -124,7 +141,7 @@ function Formulario({
     tipoDoGasto && permitidos.includes(tipoDoGasto) ? tipoDoGasto : permitidos[0],
   );
   const [selecionados, setSelecionados] = useState<string[]>(
-    tipoDoGasto === 'igual' ? gasto!.divisoes.map((d) => d.usuario_id) : ids,
+    tipoDoGasto === 'igual' ? gasto!.divisoes.map((d) => d.usuario_id) : ativos,
   );
   const [valores, setValores] = useState<Record<string, string>>(
     tipoDoGasto === 'exato' ? porPessoa(gasto, 'valor', true) : {},
@@ -133,12 +150,12 @@ function Formulario({
     tipoDoGasto === 'porcentagem' ? porPessoa(gasto, 'parametro', false) : {},
   );
   const [cotas, setCotas] = useState<Record<string, string>>(
-    tipoDoGasto === 'cotas' ? porPessoa(gasto, 'parametro', false) : Object.fromEntries(ids.map((u) => [u, '1'])),
+    tipoDoGasto === 'cotas' ? porPessoa(gasto, 'parametro', false) : Object.fromEntries(ativos.map((u) => [u, '1'])),
   );
   const [itens, setItens] = useState<Item[]>(
     tipoDoGasto === 'itens' && gasto?.itens?.length
       ? gasto.itens.map((i) => ({ ...i, valor: paraCampo(i.valor) }))
-      : [novoItem(ids)],
+      : [novoItem(ativos)],
   );
 
   const [infoNota, setInfoNota] = useState<string | null>(null);
@@ -153,7 +170,7 @@ function Formulario({
       ouvirNota((nota) => {
         const { itens: daNota, total: totalNota } = itensDaNota(
           nota,
-          membros.map((m) => m.usuario_id),
+          membros.filter((m) => m.ativo).map((m) => m.usuario_id),
         );
         const loja = nota.estabelecimento?.slice(0, 80) ?? 'Compra';
         setDescricao((atual) => (atual.trim() ? atual : loja));
@@ -300,13 +317,7 @@ function Formulario({
               </View>
             </View>
           ) : (
-            <Campo
-              rotulo="Valor (R$)"
-              value={valorTexto}
-              onChangeText={setValorTexto}
-              keyboardType="decimal-pad"
-              placeholder="0,00"
-            />
+            <CampoDinheiro rotulo="Valor (R$)" value={valorTexto} onChangeText={setValorTexto} />
           )}
         </View>
         <View style={{ flex: 1 }}>
@@ -340,11 +351,10 @@ function Formulario({
           <Cartao>
             {membros.map((m) => (
               <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
-                <Campo
+                <CampoDinheiro
                   value={valoresPagos[m.usuario_id] ?? ''}
                   onChangeText={(t) => setValoresPagos({ ...valoresPagos, [m.usuario_id]: t })}
-                  keyboardType="decimal-pad"
-                  placeholder="0,00"
+                  accessibilityLabel={`Quanto ${nome(m.usuario_id)} pagou`}
                   style={estilos.campoPequeno}
                 />
               </LinhaPessoa>
@@ -388,23 +398,35 @@ function Formulario({
           </Fichas>
         ) : null}
 
-        {tipo === 'exato' || tipo === 'porcentagem' ? (
+        {tipo === 'exato' ? (
           <Cartao>
-            {membros.map((m) => {
-              const mapa = tipo === 'exato' ? valores : porcentagens;
-              const setMapa = tipo === 'exato' ? setValores : setPorcentagens;
-              return (
-                <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
-                  <Campo
-                    value={mapa[m.usuario_id] ?? ''}
-                    onChangeText={(t) => setMapa({ ...mapa, [m.usuario_id]: t })}
-                    keyboardType="decimal-pad"
-                    placeholder={tipo === 'exato' ? '0,00' : '0 %'}
-                    style={estilos.campoPequeno}
-                  />
-                </LinhaPessoa>
-              );
-            })}
+            {membros.map((m) => (
+              <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
+                <CampoDinheiro
+                  value={valores[m.usuario_id] ?? ''}
+                  onChangeText={(t) => setValores({ ...valores, [m.usuario_id]: t })}
+                  accessibilityLabel={`Parte de ${nome(m.usuario_id)}`}
+                  style={estilos.campoPequeno}
+                />
+              </LinhaPessoa>
+            ))}
+          </Cartao>
+        ) : null}
+
+        {tipo === 'porcentagem' ? (
+          <Cartao>
+            {membros.map((m) => (
+              <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
+                <Campo
+                  value={porcentagens[m.usuario_id] ?? ''}
+                  onChangeText={(t) => setPorcentagens({ ...porcentagens, [m.usuario_id]: t })}
+                  keyboardType="decimal-pad"
+                  placeholder="0 %"
+                  accessibilityLabel={`Porcentagem de ${nome(m.usuario_id)}`}
+                  style={estilos.campoPequeno}
+                />
+              </LinhaPessoa>
+            ))}
           </Cartao>
         ) : null}
 
@@ -438,11 +460,9 @@ function Formulario({
                   accessibilityLabel={`Item ${i + 1}`}
                 />
                 <Linha style={{ alignItems: 'flex-start' }}>
-                  <Campo
+                  <CampoDinheiro
                     value={item.valor}
                     onChangeText={(t) => mudarItem(i, { valor: t })}
-                    keyboardType="decimal-pad"
-                    placeholder="0,00"
                     accessibilityLabel={`Valor do item ${i + 1}`}
                     style={estilos.campoPequeno}
                   />
@@ -477,7 +497,7 @@ function Formulario({
             <Botao
               titulo="+ Adicionar item"
               variante="secundario"
-              aoPressionar={() => setItens([...itens, novoItem(ids)])}
+              aoPressionar={() => setItens([...itens, novoItem(ativos)])}
             />
           </View>
         ) : null}
@@ -541,7 +561,7 @@ function Formulario({
 
       {erro ? <Aviso texto={erro} /> : null}
       <Botao titulo={gasto ? 'Salvar alterações' : 'Registrar gasto'} aoPressionar={salvar} carregando={salvando} />
-      {gasto ? (
+      {podeExcluir ? (
         <Botao
           titulo="Excluir gasto"
           variante="perigo"
@@ -549,6 +569,11 @@ function Formulario({
           aoPressionar={excluir}
           desabilitado={salvando}
         />
+      ) : null}
+      {gasto && !podeExcluir ? (
+        <Texto variante="suave" style={{ textAlign: 'center' }}>
+          Só quem registrou o gasto ou o dono do grupo pode excluir.
+        </Texto>
       ) : null}
     </Tela>
   );

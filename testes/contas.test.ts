@@ -2,10 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Decimal, lerValor, reais, valorACobrar } from '../src/lib/dinheiro';
+import { Decimal, lerValor, mascaraDinheiro, paraCampo, reais, valorACobrar } from '../src/lib/dinheiro';
 import { calcularDivisao, calcularPagadores, type EntradaDivisao } from '../src/lib/divisao';
-import { calcularPendencias, resumoDoUsuario } from '../src/lib/saldos';
-import type { Divida, Pagamento } from '../src/lib/tipos';
+import { lerPendencias, resumoDoUsuario, saldoDaPessoa } from '../src/lib/saldos';
 
 const vazio: EntradaDivisao = { selecionados: [], valores: {}, porcentagens: {}, cotas: {}, itens: [] };
 const soma = (partes: { valor: Decimal }[]) => partes.reduce((s, p) => s.plus(p.valor), new Decimal(0));
@@ -16,6 +15,28 @@ test('lê valores no formato brasileiro', () => {
   assert.equal(lerValor('99.90')!.toString(), '99.9');
   assert.equal(lerValor('abc'), null);
   assert.equal(lerValor(''), null);
+});
+
+test('"1.500" é mil e quinhentos, não um e cinquenta', () => {
+  assert.equal(lerValor('1.500')!.toString(), '1500');
+  assert.equal(lerValor('12.500')!.toString(), '12500');
+  assert.equal(lerValor('1.234.567')!.toString(), '1234567');
+  assert.equal(lerValor('0.500')!.toString(), '0.5');
+  assert.equal(lerValor('12.5')!.toString(), '12.5');
+  assert.equal(lerValor('1.50')!.toString(), '1.5');
+});
+
+test('máscara de moeda: só dígitos, com os centavos à direita', () => {
+  assert.equal(mascaraDinheiro('150000'), '1.500,00');
+  assert.equal(mascaraDinheiro('1'), '0,01');
+  assert.equal(mascaraDinheiro('R$ 1.500,00'), '1.500,00');
+  assert.equal(mascaraDinheiro('1.500,0'), '150,00');
+  assert.equal(mascaraDinheiro('000'), '');
+  assert.equal(mascaraDinheiro(''), '');
+  assert.equal(mascaraDinheiro('99999999999999'), '9.999.999.999,99');
+  assert.equal(lerValor(mascaraDinheiro('150000'))!.toString(), '1500');
+  assert.equal(paraCampo('1500'), '1.500,00');
+  assert.equal(lerValor(paraCampo('33.3'))!.toString(), '33.3');
 });
 
 test('cobrança arredonda para cima e ignora resíduos', () => {
@@ -88,90 +109,28 @@ test('vários pagadores precisam somar o total', () => {
   assert.equal(calcularPagadores(new Decimal(90), 'a', null).pagadores[0].valor.toString(), '90');
 });
 
-const divida = (id: string, gasto: string, devedor: string, credor: string, valor: string): Divida => ({
-  id,
-  gasto_id: gasto,
-  devedor,
-  credor,
-  valor,
-});
-const pagamento = (de: string, para: string, valor: string, gasto: string | null = null): Pagamento => ({
-  id: `${de}${para}${valor}`,
-  de,
-  para,
-  valor,
-  valor_cobrado: valor,
-  gasto_id: gasto,
-  marcado_por: de,
-  criado_em: '',
-});
-const gastos = [
-  { id: 'g1', descricao: 'Luz', data: '2026-10-01', criado_em: '1' },
-  { id: 'g2', descricao: 'Aluguel', data: '2026-10-05', criado_em: '2' },
-  { id: 'g3', descricao: 'Lanche', data: '2026-10-06', criado_em: '3' },
-];
-
-test('com abatimento: A deve 50 a B, B deve 30 a A, então A paga 20 a B', () => {
-  const lista = calcularPendencias(
-    true,
-    [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'A', '30')],
-    [],
-    gastos,
-  );
-  assert.equal(lista.length, 1);
-  assert.equal(lista[0].devedor, 'A');
-  assert.equal(lista[0].credor, 'B');
-  assert.equal(lista[0].valor.toString(), '20');
-});
-
-test('com abatimento: nunca passa por terceiro', () => {
-  const lista = calcularPendencias(
-    true,
-    [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'C', '50')],
-    [],
-    gastos,
-  );
-  assert.equal(lista.length, 2);
-  assert.ok(lista.every((p) => !(p.devedor === 'A' && p.credor === 'C')));
-});
-
-test('sem abatimento: cada gasto é uma dívida separada', () => {
-  const lista = calcularPendencias(
-    false,
-    [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'A', '30')],
-    [],
-    gastos,
-  );
-  assert.equal(lista.length, 2);
-  const resumo = resumoDoUsuario(lista, 'A');
-  assert.equal(resumo.voceDeve.toString(), '50');
-  assert.equal(resumo.teDevem.toString(), '30');
-});
-
-test('sem abatimento: pagamento quita o gasto certo e a sobra quita o mais antigo', () => {
-  const dividas = [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g3', 'A', 'B', '20')];
-  const quitouLanche = calcularPendencias(false, dividas, [pagamento('A', 'B', '20', 'g3')], gastos);
-  assert.deepEqual(
-    quitouLanche.map((p) => p.descricao),
-    ['Luz'],
-  );
-
-  const semGasto = calcularPendencias(false, dividas, [pagamento('A', 'B', '60')], gastos);
-  assert.equal(semGasto.length, 1);
-  assert.equal(semGasto[0].descricao, 'Lanche');
-  assert.equal(semGasto[0].valor.toString(), '10');
-});
-
-test('dízima na dívida vira cobrança arredondada para cima', () => {
-  const lista = calcularPendencias(true, [divida('1', 'g1', 'B', 'A', '33.333333333333333333')], [], gastos);
-  assert.equal(lista[0].cobrar.toString(), '33.34');
-  const quitado = calcularPendencias(
-    true,
-    [divida('1', 'g1', 'B', 'A', '33.333333333333333333')],
-    [pagamento('B', 'A', '33.333333333333333333')],
-    gastos,
-  );
-  assert.equal(quitado.length, 0);
+// as pendências são calculadas no banco (testes em supabase/testes); aqui só a leitura e os totais
+test('pendências do banco viram valores exatos e de cobrança', () => {
+  const lista = lerPendencias([
+    {
+      devedor: 'B',
+      credor: 'A',
+      gasto_id: null,
+      descricao: null,
+      data: null,
+      valor: '33.333333333333333333',
+      cobrar: '33.34',
+    },
+    { devedor: 'A', credor: 'C', gasto_id: 'g1', descricao: 'Luz', data: '2026-10-01', valor: '10', cobrar: '10.00' },
+  ]);
+  assert.equal(lista[0].valor.toString(), '33.333333333333333333');
+  assert.equal(lista[0].chave, 'B|A');
+  assert.equal(lista[1].chave, 'g1|A|C');
+  const { voceDeve, teDevem } = resumoDoUsuario(lista, 'A');
+  assert.equal(voceDeve.toString(), '10');
+  assert.equal(teDevem.toString(), '33.34');
+  assert.equal(saldoDaPessoa(lista, 'A').toString(), '23.34');
+  assert.equal(saldoDaPessoa(lista, 'B').toString(), '-33.34');
 });
 
 test('próxima data do recorrente segue a mesma regra do banco', async () => {
