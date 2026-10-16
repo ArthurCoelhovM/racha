@@ -76,7 +76,12 @@ export function calcularDivisao(
     const escolhidos = membros.filter((u) => entrada.selecionados.includes(u));
     if (escolhidos.length === 0) return resultado([], 'Escolha quem divide o gasto');
     const cada = total.div(escolhidos.length);
-    return resultado(fechar(escolhidos.map((u) => ({ usuario_id: u, parametro: null, valor: cada })), total));
+    return resultado(
+      fechar(
+        escolhidos.map((u) => ({ usuario_id: u, parametro: null, valor: cada })),
+        total,
+      ),
+    );
   }
 
   if (tipo === 'exato') {
@@ -104,7 +109,9 @@ export function calcularDivisao(
     if (partes.length === 0) return resultado([], 'Informe a porcentagem de cada pessoa');
     if (!soma.eq(100)) {
       const falta = new Decimal(100).minus(soma);
-      const texto = falta.gt(0) ? `Faltam ${falta.toString().replace('.', ',')}%` : `Passou ${falta.abs().toString().replace('.', ',')}%`;
+      const texto = falta.gt(0)
+        ? `Faltam ${falta.toString().replace('.', ',')}%`
+        : `Passou ${falta.abs().toString().replace('.', ',')}%`;
       return resultado(partes, `${texto} para fechar 100%`);
     }
     return resultado(fechar(partes, total));

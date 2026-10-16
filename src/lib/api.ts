@@ -1,3 +1,4 @@
+import type { Nota } from './cupom';
 import type { Decimal } from './dinheiro';
 import type { Parte, Pagador } from './divisao';
 import { supabase } from './supabase';
@@ -18,7 +19,9 @@ import type {
 
 export function mensagemDeErro(erro: unknown): string {
   const texto =
-    erro && typeof erro === 'object' && 'message' in erro ? String((erro as { message: unknown }).message) : String(erro);
+    erro && typeof erro === 'object' && 'message' in erro
+      ? String((erro as { message: unknown }).message)
+      : String(erro);
   if (/Failed to fetch|Network request failed|NetworkError/i.test(texto)) {
     return 'Sem conexão com o servidor. Confira a internet e tente de novo.';
   }
@@ -184,7 +187,11 @@ export async function salvarGasto(g: GastoParaSalvar): Promise<string> {
   return checar(await supabase.rpc('salvar_gasto', { p: montarPayload(g) })) as string;
 }
 
-export async function criarRecorrente(g: GastoParaSalvar, frequencia: Frequencia, primeiroGastoId: string): Promise<string> {
+export async function criarRecorrente(
+  g: GastoParaSalvar,
+  frequencia: Frequencia,
+  primeiroGastoId: string,
+): Promise<string> {
   return checar(
     await supabase.rpc('criar_recorrente', {
       p: montarPayload({ ...g, id: undefined }),
@@ -273,4 +280,23 @@ export async function buscarMeuPerfil(id: string) {
     nome: string;
     email: string | null;
   };
+}
+
+export async function lerNotaFiscal(url: string): Promise<Nota> {
+  const { data, error } = await supabase.functions.invoke('ler-nfce', { body: { url } });
+  if (!error) return data as Nota;
+
+  let mensagem = 'Não deu para consultar a nota agora. Tente de novo.';
+  const resposta = (error as { context?: unknown }).context;
+  if (resposta instanceof Response) {
+    try {
+      const corpo = await resposta.json();
+      if (corpo && typeof corpo.erro === 'string') mensagem = corpo.erro;
+    } catch {
+      // resposta sem JSON: fica a mensagem padrão
+    }
+  } else if (/fetch|network/i.test(error.message)) {
+    mensagem = 'Sem conexão com o servidor. Confira a internet e tente de novo.';
+  }
+  throw new Error(mensagem);
 }

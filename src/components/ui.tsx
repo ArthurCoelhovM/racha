@@ -123,9 +123,12 @@ export function Botao({
   const [pedindoConfirmacao, setPedindoConfirmacao] = useState(false);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => {
-    if (temporizador.current) clearTimeout(temporizador.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (temporizador.current) clearTimeout(temporizador.current);
+    },
+    [],
+  );
 
   const fundo = {
     primario: tema.primaria,
@@ -210,7 +213,11 @@ export function Campo({
           style,
         ]}
       />
-      {erro ? <Texto variante="suave" cor={tema.negativo}>{erro}</Texto> : null}
+      {erro ? (
+        <Texto variante="suave" cor={tema.negativo}>
+          {erro}
+        </Texto>
+      ) : null}
       {!erro && dica ? <Texto variante="suave">{dica}</Texto> : null}
     </View>
   );
@@ -221,7 +228,9 @@ export function Campo({
 export function Cartao({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const tema = useTema();
   return (
-    <View style={[estilos.cartao, { backgroundColor: tema.superficie, borderColor: tema.borda }, style]}>{children}</View>
+    <View style={[estilos.cartao, { backgroundColor: tema.superficie, borderColor: tema.borda }, style]}>
+      {children}
+    </View>
   );
 }
 
@@ -375,8 +384,14 @@ export function Carregando() {
 export function Vazio({ titulo, texto, children }: { titulo: string; texto?: string; children?: ReactNode }) {
   return (
     <View style={estilos.vazio}>
-      <Texto variante="subtitulo" style={{ textAlign: 'center' }}>{titulo}</Texto>
-      {texto ? <Texto variante="suave" style={{ textAlign: 'center' }}>{texto}</Texto> : null}
+      <Texto variante="subtitulo" style={{ textAlign: 'center' }}>
+        {titulo}
+      </Texto>
+      {texto ? (
+        <Texto variante="suave" style={{ textAlign: 'center' }}>
+          {texto}
+        </Texto>
+      ) : null}
       {children}
     </View>
   );

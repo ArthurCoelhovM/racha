@@ -42,7 +42,13 @@ export default function Cadastro() {
 
   return (
     <Tela>
-      <Campo rotulo="Seu nome" value={nome} onChangeText={setNome} autoComplete="name" placeholder="Como o grupo te chama" />
+      <Campo
+        rotulo="Seu nome"
+        value={nome}
+        onChangeText={setNome}
+        autoComplete="name"
+        placeholder="Como o grupo te chama"
+      />
       <Campo
         rotulo="E-mail"
         value={email}

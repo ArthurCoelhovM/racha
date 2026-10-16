@@ -42,7 +42,12 @@ export default function Conta() {
       {aviso ? <Aviso texto={aviso.texto} tipo={aviso.tipo} /> : null}
       <Botao titulo="Salvar nome" aoPressionar={salvar} carregando={salvando} />
       <Botao titulo="Trocar senha" variante="secundario" aoPressionar={() => router.push('/nova-senha')} />
-      <Botao titulo="Sair da conta" variante="perigo" confirmar="Toque de novo para sair" aoPressionar={() => supabase.auth.signOut()} />
+      <Botao
+        titulo="Sair da conta"
+        variante="perigo"
+        confirmar="Toque de novo para sair"
+        aoPressionar={() => supabase.auth.signOut()}
+      />
     </Tela>
   );
 }

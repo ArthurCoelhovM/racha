@@ -47,7 +47,12 @@ export default function Configuracoes() {
         Ao sair, o grupo some da sua lista. Dívidas em aberto continuam registradas para os outros membros.
       </Texto>
       {erroSair ? <Aviso texto={erroSair} /> : null}
-      <Botao titulo="Sair do grupo" variante="perigo" confirmar="Toque de novo para sair do grupo" aoPressionar={sair} />
+      <Botao
+        titulo="Sair do grupo"
+        variante="perigo"
+        confirmar="Toque de novo para sair do grupo"
+        aoPressionar={sair}
+      />
     </Tela>
   );
 }

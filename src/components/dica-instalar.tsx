@@ -42,16 +42,26 @@ export function DicaInstalar() {
       <View style={{ flex: 1, gap: 4 }}>
         <Texto variante="forte">Instale no seu iPhone</Texto>
         <Texto variante="suave">
-          No Safari, toque em Compartilhar e depois em &quot;Adicionar à Tela de Início&quot;. O app abre em tela cheia, como os outros.
+          No Safari, toque em Compartilhar e depois em &quot;Adicionar à Tela de Início&quot;. O app abre em tela cheia,
+          como os outros.
         </Texto>
       </View>
       <Pressable onPress={fechar} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar dica">
-        <Texto variante="forte" cor={tema.primaria}>OK</Texto>
+        <Texto variante="forte" cor={tema.primaria}>
+          OK
+        </Texto>
       </Pressable>
     </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  caixa: { flexDirection: 'row', gap: espaco.m, padding: 14, borderRadius: raio.m, borderWidth: 1.5, alignItems: 'flex-start' },
+  caixa: {
+    flexDirection: 'row',
+    gap: espaco.m,
+    padding: 14,
+    borderRadius: raio.m,
+    borderWidth: 1.5,
+    alignItems: 'flex-start',
+  },
 });

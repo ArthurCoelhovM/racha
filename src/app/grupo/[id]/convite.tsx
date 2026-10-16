@@ -68,7 +68,9 @@ export default function Convite() {
       {link ? (
         <View style={{ gap: 6 }}>
           <Texto variante="rotulo">Link do convite</Texto>
-          <Texto variante="suave" style={{ color: tema.texto }}>{link}</Texto>
+          <Texto variante="suave" style={{ color: tema.texto }}>
+            {link}
+          </Texto>
         </View>
       ) : null}
 
@@ -85,7 +87,11 @@ export default function Convite() {
         carregando={gerando}
       />
       {novo ? (
-        <Botao titulo="Ir para o grupo" variante="secundario" aoPressionar={() => router.replace({ pathname: '/grupo/[id]', params: { id } })} />
+        <Botao
+          titulo="Ir para o grupo"
+          variante="secundario"
+          aoPressionar={() => router.replace({ pathname: '/grupo/[id]', params: { id } })}
+        />
       ) : null}
     </Tela>
   );

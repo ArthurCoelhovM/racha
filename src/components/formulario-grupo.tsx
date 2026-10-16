@@ -49,7 +49,13 @@ export function FormularioGrupo({
 
   return (
     <View style={{ gap: espaco.g }}>
-      <Campo rotulo="Nome do grupo" value={nome} onChangeText={setNome} placeholder="Casa, Mercado, Viagem..." maxLength={60} />
+      <Campo
+        rotulo="Nome do grupo"
+        value={nome}
+        onChangeText={setNome}
+        placeholder="Casa, Mercado, Viagem..."
+        maxLength={60}
+      />
 
       <View style={{ gap: espaco.m }}>
         <Texto variante="rotulo">Cor</Texto>
@@ -83,7 +89,12 @@ export function FormularioGrupo({
         <Texto variante="rotulo">Formas de dividir permitidas</Texto>
         <Fichas>
           {TIPOS_DIVISAO.map((t) => (
-            <Ficha key={t.tipo} rotulo={t.nome} selecionada={divisoes.includes(t.tipo)} aoPressionar={() => alternarDivisao(t.tipo)} />
+            <Ficha
+              key={t.tipo}
+              rotulo={t.nome}
+              selecionada={divisoes.includes(t.tipo)}
+              aoPressionar={() => alternarDivisao(t.tipo)}
+            />
           ))}
         </Fichas>
       </View>
@@ -92,7 +103,12 @@ export function FormularioGrupo({
         <Texto variante="rotulo">Lembrete de dívida</Texto>
         <Fichas>
           {OPCOES_LEMBRETE.map((dias) => (
-            <Ficha key={dias} rotulo={textoLembrete(dias)} selecionada={lembreteDias === dias} aoPressionar={() => setLembreteDias(dias)} />
+            <Ficha
+              key={dias}
+              rotulo={textoLembrete(dias)}
+              selecionada={lembreteDias === dias}
+              aoPressionar={() => setLembreteDias(dias)}
+            />
           ))}
         </Fichas>
       </View>

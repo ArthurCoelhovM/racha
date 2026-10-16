@@ -41,9 +41,15 @@ test('valor exato avisa quanto falta', () => {
 });
 
 test('porcentagem precisa fechar 100%', () => {
-  const r = calcularDivisao('porcentagem', new Decimal(200), ['a', 'b'], { ...vazio, porcentagens: { a: '70', b: '20' } });
+  const r = calcularDivisao('porcentagem', new Decimal(200), ['a', 'b'], {
+    ...vazio,
+    porcentagens: { a: '70', b: '20' },
+  });
   assert.match(r.erro!, /Faltam 10%/);
-  const ok = calcularDivisao('porcentagem', new Decimal(200), ['a', 'b'], { ...vazio, porcentagens: { a: '70', b: '30' } });
+  const ok = calcularDivisao('porcentagem', new Decimal(200), ['a', 'b'], {
+    ...vazio,
+    porcentagens: { a: '70', b: '30' },
+  });
   assert.equal(ok.erro, null);
   assert.equal(ok.partes[0].valor.toString(), '140');
 });
@@ -65,21 +71,39 @@ test('por item soma o que cada um consumiu', () => {
   assert.equal(r.erro, null);
   assert.deepEqual(
     r.partes.map((p) => [p.usuario_id, p.valor.toString()]),
-    [['a', '15'], ['b', '15'], ['c', '10']],
+    [
+      ['a', '15'],
+      ['b', '15'],
+      ['c', '10'],
+    ],
   );
 });
 
 test('vários pagadores precisam somar o total', () => {
-  assert.equal(calcularPagadores(new Decimal(90), null, { a: '60', b: '20' }).erro, 'Os pagamentos ainda não cobrem R$ 10,00');
+  assert.equal(
+    calcularPagadores(new Decimal(90), null, { a: '60', b: '20' }).erro,
+    'Os pagamentos ainda não cobrem R$ 10,00',
+  );
   assert.equal(calcularPagadores(new Decimal(90), null, { a: '60', b: '30' }).erro, null);
   assert.equal(calcularPagadores(new Decimal(90), 'a', null).pagadores[0].valor.toString(), '90');
 });
 
 const divida = (id: string, gasto: string, devedor: string, credor: string, valor: string): Divida => ({
-  id, gasto_id: gasto, devedor, credor, valor,
+  id,
+  gasto_id: gasto,
+  devedor,
+  credor,
+  valor,
 });
 const pagamento = (de: string, para: string, valor: string, gasto: string | null = null): Pagamento => ({
-  id: `${de}${para}${valor}`, de, para, valor, valor_cobrado: valor, gasto_id: gasto, marcado_por: de, criado_em: '',
+  id: `${de}${para}${valor}`,
+  de,
+  para,
+  valor,
+  valor_cobrado: valor,
+  gasto_id: gasto,
+  marcado_por: de,
+  criado_em: '',
 });
 const gastos = [
   { id: 'g1', descricao: 'Luz', data: '2026-10-01', criado_em: '1' },
@@ -88,7 +112,12 @@ const gastos = [
 ];
 
 test('com abatimento: A deve 50 a B, B deve 30 a A, então A paga 20 a B', () => {
-  const lista = calcularPendencias(true, [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'A', '30')], [], gastos);
+  const lista = calcularPendencias(
+    true,
+    [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'A', '30')],
+    [],
+    gastos,
+  );
   assert.equal(lista.length, 1);
   assert.equal(lista[0].devedor, 'A');
   assert.equal(lista[0].credor, 'B');
@@ -107,7 +136,12 @@ test('com abatimento: nunca passa por terceiro', () => {
 });
 
 test('sem abatimento: cada gasto é uma dívida separada', () => {
-  const lista = calcularPendencias(false, [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'A', '30')], [], gastos);
+  const lista = calcularPendencias(
+    false,
+    [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g2', 'B', 'A', '30')],
+    [],
+    gastos,
+  );
   assert.equal(lista.length, 2);
   const resumo = resumoDoUsuario(lista, 'A');
   assert.equal(resumo.voceDeve.toString(), '50');
@@ -117,7 +151,10 @@ test('sem abatimento: cada gasto é uma dívida separada', () => {
 test('sem abatimento: pagamento quita o gasto certo e a sobra quita o mais antigo', () => {
   const dividas = [divida('1', 'g1', 'A', 'B', '50'), divida('2', 'g3', 'A', 'B', '20')];
   const quitouLanche = calcularPendencias(false, dividas, [pagamento('A', 'B', '20', 'g3')], gastos);
-  assert.deepEqual(quitouLanche.map((p) => p.descricao), ['Luz']);
+  assert.deepEqual(
+    quitouLanche.map((p) => p.descricao),
+    ['Luz'],
+  );
 
   const semGasto = calcularPendencias(false, dividas, [pagamento('A', 'B', '60')], gastos);
   assert.equal(semGasto.length, 1);

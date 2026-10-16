@@ -20,6 +20,7 @@ App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tri
 | Avisos | Gasto novo, pagamento marcado e gente nova no grupo geram um aviso para quem foi afetado (quem fez a ação não é avisado). |
 | Lembretes | Todo dia às 9h o banco lembra quem está devendo, respeitando a frequência escolhida em cada grupo. |
 | Recorrentes | Um gasto pode se repetir todo mês ou toda semana. O lançamento acontece sozinho e cada um pode ser editado depois. |
+| Cupom fiscal | O QR code da NFC-e (câmera, foto ou link colado) vira os itens da divisão "Por item". O desconto da nota é distribuído entre os itens. |
 
 ## Estrutura
 
@@ -31,7 +32,9 @@ src/app/                 telas (Expo Router)
 src/lib/divisao.ts       contas de divisão
 src/lib/saldos.ts        quem deve a quem, com e sem abatimento
 src/lib/api.ts           chamadas ao Supabase
+src/lib/cupom.ts         itens da nota fiscal para a divisão por item
 supabase/migrations/     banco: tabelas, RLS, funções e triggers
+supabase/functions/      Edge Function que consulta a nota no site da Sefaz
 supabase/testes/         testes do banco
 testes/                  testes das contas
 public/                  manifesto e ícones da versão web
@@ -49,6 +52,18 @@ public/                  manifesto e ícones da versão web
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email**. O envio de e-mail padrão do Supabase só entrega para pessoas da equipe do projeto e no máximo 2 por hora, então seus amigos não receberiam a confirmação. Para recuperar senha por e-mail, configure um SMTP próprio (Brevo e Resend têm plano grátis) em **Authentication > Emails > SMTP Settings**.
 4. Em **Authentication > URL Configuration**, coloque o endereço da versão web em **Site URL** e adicione `https://SEU-ENDERECO/**` em **Redirect URLs**.
 5. Copie a URL do projeto e a **publishable key** (botão **Connect** ou **Project Settings > API Keys**).
+
+### 1b. Leitura do cupom fiscal (Edge Function)
+
+O navegador não pode consultar o site da Sefaz direto, então quem consulta é uma Edge Function do Supabase. Para publicar:
+
+```bash
+npx supabase login
+npx supabase link --project-ref SEU-PROJETO
+npx supabase functions deploy ler-nfce
+```
+
+A função só aceita links de sites `.gov.br` com os parâmetros da NFC-e e só atende usuários logados. Ela lê o modelo de página usado pela maioria dos estados (tabela `tabResult`). Se algum estado usar outro formato, o app avisa e a pessoa digita os itens.
 
 ### 2. Rodar no seu computador
 
@@ -89,4 +104,4 @@ npm run testes:banco    # precisa de um Postgres local: PGHOST, PGPORT e PGUSER
 ## Ainda falta
 
 - Notificações push no celular (Android com expo-notifications, iPhone com Web Push). Os avisos já existem dentro do app; o push só vai entregá-los.
-- Leitura de cupom fiscal por foto.
+- Conferir a leitura do cupom com notas reais de cada estado que o grupo usa (os testes usam páginas-modelo).

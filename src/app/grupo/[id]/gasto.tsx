@@ -1,29 +1,66 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Aviso, Avatar, Botao, Campo, Carregando, Cartao, Ficha, Fichas, Interruptor, Linha, Separador, Tela, Texto } from '@/components/ui';
+import {
+  Aviso,
+  Avatar,
+  Botao,
+  Campo,
+  Carregando,
+  Cartao,
+  Ficha,
+  Fichas,
+  Interruptor,
+  Linha,
+  Separador,
+  Tela,
+  Texto,
+} from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { buscarGasto, buscarGrupo, criarRecorrente, excluirGasto, listarMembros, mensagemDeErro, salvarGasto } from '@/lib/api';
+import {
+  buscarGasto,
+  buscarGrupo,
+  criarRecorrente,
+  excluirGasto,
+  listarMembros,
+  mensagemDeErro,
+  salvarGasto,
+} from '@/lib/api';
+import { itensDaNota, ouvirNota } from '@/lib/cupom';
 import { Decimal, ehExato, lerValor, paraCampo, reais } from '@/lib/dinheiro';
 import { calcularDivisao, calcularPagadores, totalDosItens } from '@/lib/divisao';
 import { brParaIso, hojeIso, isoParaBr, proximaOcorrencia } from '@/lib/formatos';
 import { useSessao } from '@/lib/sessao';
-import { TIPOS_DIVISAO, type Frequencia, type Gasto, type Grupo, type Item, type Membro, type TipoDivisao } from '@/lib/tipos';
+import {
+  TIPOS_DIVISAO,
+  type Frequencia,
+  type Gasto,
+  type Grupo,
+  type Item,
+  type Membro,
+  type TipoDivisao,
+} from '@/lib/tipos';
 
 export default function TelaGasto() {
-  const { id, gastoId } = useLocalSearchParams<{ id: string; gastoId?: string }>();
+  const { id, gastoId } = useLocalSearchParams<{
+    id: string;
+    gastoId?: string;
+  }>();
   const { usuarioId } = useSessao();
-  const { dados, erro, carregando } = useCarregar(async () => {
-    const [grupo, membros, gasto] = await Promise.all([
-      buscarGrupo(id),
-      listarMembros(id),
-      gastoId ? buscarGasto(gastoId) : Promise.resolve(null),
-    ]);
-    return { grupo, membros: membros.filter((m) => m.ativo), gasto };
-  }, `${id}|${gastoId ?? ''}`);
+  const { dados, erro, carregando } = useCarregar(
+    async () => {
+      const [grupo, membros, gasto] = await Promise.all([
+        buscarGrupo(id),
+        listarMembros(id),
+        gastoId ? buscarGasto(gastoId) : Promise.resolve(null),
+      ]);
+      return { grupo, membros: membros.filter((m) => m.ativo), gasto };
+    },
+    `${id}|${gastoId ?? ''}`,
+  );
 
   if (carregando) return <Carregando />;
   if (!dados) return <Tela>{erro ? <Aviso texto={erro} /> : null}</Tela>;
@@ -52,10 +89,20 @@ function porPessoa(gasto: Gasto | null, campo: 'parametro' | 'valor', dinheiro: 
   return mapa;
 }
 
-function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Membro[]; gasto: Gasto | null; eu: string }) {
+function Formulario({
+  grupo,
+  membros,
+  gasto,
+  eu,
+}: {
+  grupo: Grupo;
+  membros: Membro[];
+  gasto: Gasto | null;
+  eu: string;
+}) {
   const tema = useTema();
   const ids = membros.map((m) => m.usuario_id);
-  const nome = (u: string) => (u === eu ? 'Você' : membros.find((m) => m.usuario_id === u)?.perfil.nome ?? 'Alguém');
+  const nome = (u: string) => (u === eu ? 'Você' : (membros.find((m) => m.usuario_id === u)?.perfil.nome ?? 'Alguém'));
   const permitidos = grupo.divisoes_permitidas;
   const tipoDoGasto = gasto?.tipo_divisao;
 
@@ -70,11 +117,15 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
     variosNoInicio ? Object.fromEntries(gasto!.pagadores.map((p) => [p.usuario_id, paraCampo(p.valor)])) : {},
   );
 
-  const [tipo, setTipo] = useState<TipoDivisao>(tipoDoGasto && permitidos.includes(tipoDoGasto) ? tipoDoGasto : permitidos[0]);
+  const [tipo, setTipo] = useState<TipoDivisao>(
+    tipoDoGasto && permitidos.includes(tipoDoGasto) ? tipoDoGasto : permitidos[0],
+  );
   const [selecionados, setSelecionados] = useState<string[]>(
     tipoDoGasto === 'igual' ? gasto!.divisoes.map((d) => d.usuario_id) : ids,
   );
-  const [valores, setValores] = useState<Record<string, string>>(tipoDoGasto === 'exato' ? porPessoa(gasto, 'valor', true) : {});
+  const [valores, setValores] = useState<Record<string, string>>(
+    tipoDoGasto === 'exato' ? porPessoa(gasto, 'valor', true) : {},
+  );
   const [porcentagens, setPorcentagens] = useState<Record<string, string>>(
     tipoDoGasto === 'porcentagem' ? porPessoa(gasto, 'parametro', false) : {},
   );
@@ -87,13 +138,49 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
       : [novoItem(ids)],
   );
 
+  const [infoNota, setInfoNota] = useState<string | null>(null);
   const [repetir, setRepetir] = useState(false);
   const [frequencia, setFrequencia] = useState<Frequencia>('mensal');
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const total = tipo === 'itens' ? totalDosItens(itens) : lerValor(valorTexto) ?? new Decimal(0);
-  const divisao = calcularDivisao(tipo, total, ids, { selecionados, valores, porcentagens, cotas, itens });
+  // recebe a nota quando a tela do leitor termina
+  useEffect(
+    () =>
+      ouvirNota((nota) => {
+        const { itens: daNota, total: totalNota } = itensDaNota(
+          nota,
+          membros.map((m) => m.usuario_id),
+        );
+        const loja = nota.estabelecimento?.slice(0, 80) ?? 'Compra';
+        setDescricao((atual) => (atual.trim() ? atual : loja));
+        if (nota.data) setDataTexto(isoParaBr(nota.data));
+        setValorTexto(paraCampo(totalNota));
+        const desconto =
+          nota.desconto > 0 ? ` O desconto de ${reais(nota.desconto)} foi distribuído entre os itens.` : '';
+        if (grupo.divisoes_permitidas.includes('itens')) {
+          setTipo('itens');
+          setItens(daNota);
+          setInfoNota(
+            `Nota lida: ${daNota.length} itens, total ${reais(totalNota)}.${desconto} Desmarque quem não participou de cada item.`,
+          );
+        } else {
+          setInfoNota(
+            `Nota lida: total ${reais(totalNota)}. Este grupo não permite dividir por item, então usei só o total.`,
+          );
+        }
+      }),
+    [membros, grupo.divisoes_permitidas],
+  );
+
+  const total = tipo === 'itens' ? totalDosItens(itens) : (lerValor(valorTexto) ?? new Decimal(0));
+  const divisao = calcularDivisao(tipo, total, ids, {
+    selecionados,
+    valores,
+    porcentagens,
+    cotas,
+    itens,
+  });
   const pagadores = calcularPagadores(total, varios ? null : pagadorUnico, varios ? valoresPagos : null);
 
   async function salvar() {
@@ -106,7 +193,7 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
           ? 'Use no máximo 2 casas decimais no valor.'
           : !dataIso
             ? 'Data inválida. Use dia/mês/ano, como 16/10/2026.'
-            : pagadores.erro ?? divisao.erro;
+            : (pagadores.erro ?? divisao.erro);
     if (problema) {
       setErro(problema);
       return;
@@ -123,7 +210,11 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
         tipo,
         itens:
           tipo === 'itens'
-            ? itens.map((i) => ({ ...i, descricao: i.descricao.trim(), valor: (lerValor(i.valor) ?? new Decimal(0)).toFixed(2) }))
+            ? itens.map((i) => ({
+                ...i,
+                descricao: i.descricao.trim(),
+                valor: (lerValor(i.valor) ?? new Decimal(0)).toFixed(2),
+              }))
             : null,
         pagadores: pagadores.pagadores,
         partes: divisao.partes,
@@ -166,13 +257,35 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
 
   const dicaTipo = TIPOS_DIVISAO.find((t) => t.tipo === tipo)?.dica;
   const dataEscolhida = brParaIso(dataTexto);
-  const proximaData = dataEscolhida ? proximaOcorrencia(dataEscolhida, frequencia, Number(dataEscolhida.slice(8, 10))) : null;
+  const proximaData = dataEscolhida
+    ? proximaOcorrencia(dataEscolhida, frequencia, Number(dataEscolhida.slice(8, 10)))
+    : null;
 
   return (
     <Tela>
       <Stack.Screen options={{ title: gasto ? 'Editar gasto' : 'Novo gasto' }} />
 
-      <Campo rotulo="Descrição" value={descricao} onChangeText={setDescricao} placeholder="Mercado, luz, pizza..." maxLength={80} />
+      {!gasto ? (
+        <Botao
+          titulo="Ler cupom fiscal (QR code)"
+          variante="secundario"
+          aoPressionar={() =>
+            router.push({
+              pathname: '/grupo/[id]/cupom',
+              params: { id: grupo.id },
+            })
+          }
+        />
+      ) : null}
+      {infoNota ? <Aviso tipo="info" texto={infoNota} /> : null}
+
+      <Campo
+        rotulo="Descrição"
+        value={descricao}
+        onChangeText={setDescricao}
+        placeholder="Mercado, luz, pizza..."
+        maxLength={80}
+      />
 
       <View style={estilos.duasColunas}>
         <View style={{ flex: 1 }}>
@@ -184,11 +297,24 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
               </View>
             </View>
           ) : (
-            <Campo rotulo="Valor (R$)" value={valorTexto} onChangeText={setValorTexto} keyboardType="decimal-pad" placeholder="0,00" />
+            <Campo
+              rotulo="Valor (R$)"
+              value={valorTexto}
+              onChangeText={setValorTexto}
+              keyboardType="decimal-pad"
+              placeholder="0,00"
+            />
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Campo rotulo="Data" value={dataTexto} onChangeText={setDataTexto} placeholder="dd/mm/aaaa" keyboardType="numbers-and-punctuation" maxLength={10} />
+          <Campo
+            rotulo="Data"
+            value={dataTexto}
+            onChangeText={setDataTexto}
+            placeholder="dd/mm/aaaa"
+            keyboardType="numbers-and-punctuation"
+            maxLength={10}
+          />
         </View>
       </View>
 
@@ -230,7 +356,13 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
       <Secao titulo="Como dividir">
         <Fichas>
           {TIPOS_DIVISAO.filter((t) => permitidos.includes(t.tipo)).map((t) => (
-            <Ficha key={t.tipo} rotulo={t.nome} selecionada={tipo === t.tipo} aoPressionar={() => setTipo(t.tipo)} cor={grupo.cor} />
+            <Ficha
+              key={t.tipo}
+              rotulo={t.nome}
+              selecionada={tipo === t.tipo}
+              aoPressionar={() => setTipo(t.tipo)}
+              cor={grupo.cor}
+            />
           ))}
         </Fichas>
         {dicaTipo ? <Texto variante="suave">{dicaTipo}</Texto> : null}
@@ -296,30 +428,54 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
           <View style={{ gap: espaco.m }}>
             {itens.map((item, i) => (
               <Cartao key={i}>
-                <View style={estilos.duasColunas}>
-                  <View style={{ flex: 2 }}>
-                    <Campo value={item.descricao} onChangeText={(t) => mudarItem(i, { descricao: t })} placeholder={`Item ${i + 1}`} />
-                  </View>
+                <Campo
+                  value={item.descricao}
+                  onChangeText={(t) => mudarItem(i, { descricao: t })}
+                  placeholder={`Item ${i + 1}`}
+                  accessibilityLabel={`Item ${i + 1}`}
+                />
+                <Linha style={{ alignItems: 'flex-start' }}>
+                  <Campo
+                    value={item.valor}
+                    onChangeText={(t) => mudarItem(i, { valor: t })}
+                    keyboardType="decimal-pad"
+                    placeholder="0,00"
+                    accessibilityLabel={`Valor do item ${i + 1}`}
+                    style={estilos.campoPequeno}
+                  />
                   <View style={{ flex: 1 }}>
-                    <Campo value={item.valor} onChangeText={(t) => mudarItem(i, { valor: t })} keyboardType="decimal-pad" placeholder="0,00" />
+                    <Fichas>
+                      {membros.map((m) => (
+                        <Ficha
+                          key={m.usuario_id}
+                          rotulo={nome(m.usuario_id)}
+                          selecionada={item.participantes.includes(m.usuario_id)}
+                          aoPressionar={() =>
+                            mudarItem(i, {
+                              participantes: alternar(item.participantes, m.usuario_id),
+                            })
+                          }
+                        />
+                      ))}
+                    </Fichas>
                   </View>
-                </View>
-                <Fichas>
-                  {membros.map((m) => (
-                    <Ficha
-                      key={m.usuario_id}
-                      rotulo={nome(m.usuario_id)}
-                      selecionada={item.participantes.includes(m.usuario_id)}
-                      aoPressionar={() => mudarItem(i, { participantes: alternar(item.participantes, m.usuario_id) })}
-                    />
-                  ))}
-                </Fichas>
+                </Linha>
                 {itens.length > 1 ? (
-                  <Botao titulo="Remover item" variante="texto" pequeno aoPressionar={() => setItens(itens.filter((_, j) => j !== i))} style={{ alignSelf: 'flex-start' }} />
+                  <Botao
+                    titulo="Remover item"
+                    variante="texto"
+                    pequeno
+                    aoPressionar={() => setItens(itens.filter((_, j) => j !== i))}
+                    style={{ alignSelf: 'flex-start' }}
+                  />
                 ) : null}
               </Cartao>
             ))}
-            <Botao titulo="+ Adicionar item" variante="secundario" aoPressionar={() => setItens([...itens, novoItem(ids)])} />
+            <Botao
+              titulo="+ Adicionar item"
+              variante="secundario"
+              aoPressionar={() => setItens([...itens, novoItem(ids)])}
+            />
           </View>
         ) : null}
       </Secao>
@@ -341,7 +497,11 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
               </View>
             ))
           )}
-          {divisao.erro ? <Texto variante="suave" cor={tema.negativo}>{divisao.erro}</Texto> : null}
+          {divisao.erro ? (
+            <Texto variante="suave" cor={tema.negativo}>
+              {divisao.erro}
+            </Texto>
+          ) : null}
         </Cartao>
         <Texto variante="suave">
           As contas guardam os centavos exatos. Na hora de cobrar, o valor é arredondado para cima.
@@ -359,8 +519,16 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
           {repetir ? (
             <>
               <Fichas>
-                <Ficha rotulo="Todo mês" selecionada={frequencia === 'mensal'} aoPressionar={() => setFrequencia('mensal')} />
-                <Ficha rotulo="Toda semana" selecionada={frequencia === 'semanal'} aoPressionar={() => setFrequencia('semanal')} />
+                <Ficha
+                  rotulo="Todo mês"
+                  selecionada={frequencia === 'mensal'}
+                  aoPressionar={() => setFrequencia('mensal')}
+                />
+                <Ficha
+                  rotulo="Toda semana"
+                  selecionada={frequencia === 'semanal'}
+                  aoPressionar={() => setFrequencia('semanal')}
+                />
               </Fichas>
               {proximaData ? <Texto variante="suave">Próximo lançamento em {isoParaBr(proximaData)}.</Texto> : null}
             </>
@@ -371,7 +539,13 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
       {erro ? <Aviso texto={erro} /> : null}
       <Botao titulo={gasto ? 'Salvar alterações' : 'Registrar gasto'} aoPressionar={salvar} carregando={salvando} />
       {gasto ? (
-        <Botao titulo="Excluir gasto" variante="perigo" confirmar="Toque de novo para excluir" aoPressionar={excluir} desabilitado={salvando} />
+        <Botao
+          titulo="Excluir gasto"
+          variante="perigo"
+          confirmar="Toque de novo para excluir"
+          aoPressionar={excluir}
+          desabilitado={salvando}
+        />
       ) : null}
     </Tela>
   );
@@ -390,7 +564,9 @@ function LinhaPessoa({ id, nome, children }: { id: string; nome: string; childre
   return (
     <Linha>
       <Avatar id={id} nome={nome} tamanho={28} />
-      <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>{nome}</Texto>
+      <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>
+        {nome}
+      </Texto>
       {children}
     </Linha>
   );
@@ -410,7 +586,23 @@ function BotaoRedondo({ rotulo, aoPressionar }: { rotulo: string; aoPressionar: 
 
 const estilos = StyleSheet.create({
   duasColunas: { flexDirection: 'row', gap: espaco.m },
-  campoPequeno: { width: 110, minHeight: 42, paddingVertical: 6, textAlign: 'right' },
-  valorFixo: { minHeight: 48, borderRadius: raio.m, paddingHorizontal: 14, justifyContent: 'center' },
-  redondo: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  campoPequeno: {
+    width: 110,
+    minHeight: 42,
+    paddingVertical: 6,
+    textAlign: 'right',
+  },
+  valorFixo: {
+    minHeight: 48,
+    borderRadius: raio.m,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  redondo: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

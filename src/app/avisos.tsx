@@ -43,7 +43,11 @@ export default function Avisos() {
               <Pressable
                 disabled={!a.grupo_id}
                 onPress={() => a.grupo_id && router.push({ pathname: '/grupo/[id]', params: { id: a.grupo_id } })}
-                style={({ pressed }) => [estilos.linha, !a.lido && { backgroundColor: tema.superficie2 }, { opacity: pressed ? 0.7 : 1 }]}>
+                style={({ pressed }) => [
+                  estilos.linha,
+                  !a.lido && { backgroundColor: tema.superficie2 },
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}>
                 <View style={[estilos.marca, { backgroundColor: corDoTipo[a.tipo] }]} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Texto variante="forte">{a.titulo}</Texto>

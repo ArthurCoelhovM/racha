@@ -18,6 +18,11 @@ jobs:
       - run: npm run tipos
       - run: npm run lint
       - run: npm run testes
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Tipos da Edge Function
+        run: deno check supabase/functions/ler-nfce/index.ts
       - name: Build da versão web
         run: npx expo export -p web
         env:

@@ -65,3 +65,12 @@ export function ehExato(valor: Decimal.Value): boolean {
 export function paraCampo(valor: Decimal.Value): string {
   return dec(valor).toDecimalPlaces(2).toFixed(2).replace('.', ',');
 }
+
+const formatadorExato = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+// valor exato para mostrar ao lado da cobrança: até 4 casas, com "…" se tiver mais
+export function reaisExato(valor: Decimal.Value): string {
+  const d = dec(valor);
+  const curto = d.toDecimalPlaces(4, Decimal.ROUND_DOWN);
+  return `R$ ${formatadorExato.format(Number(curto.toString()))}${curto.eq(d) ? '' : '…'}`;
+}

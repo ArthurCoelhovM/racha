@@ -41,9 +41,14 @@ export default function Grupos() {
         options={{
           headerRight: () => (
             <Linha style={{ gap: 18, paddingHorizontal: 8 }}>
-              <Pressable onPress={() => router.push('/avisos')} hitSlop={10} accessibilityLabel={`Avisos, ${naoLidos} não lidos`}>
+              <Pressable
+                onPress={() => router.push('/avisos')}
+                hitSlop={10}
+                accessibilityLabel={`Avisos, ${naoLidos} não lidos`}>
                 <Linha style={{ gap: 6 }}>
-                  <Texto variante="forte" cor={tema.primaria}>Avisos</Texto>
+                  <Texto variante="forte" cor={tema.primaria}>
+                    Avisos
+                  </Texto>
                   {naoLidos > 0 ? (
                     <View style={[estilos.contador, { backgroundColor: tema.negativo }]}>
                       <Texto variante="suave" cor="#FFFFFF" style={{ fontWeight: '800', fontSize: 12 }}>
@@ -54,7 +59,9 @@ export default function Grupos() {
                 </Linha>
               </Pressable>
               <Pressable onPress={() => router.push('/conta')} hitSlop={10}>
-                <Texto variante="forte" cor={tema.primaria}>Conta</Texto>
+                <Texto variante="forte" cor={tema.primaria}>
+                  Conta
+                </Texto>
               </Pressable>
             </Linha>
           ),
@@ -100,8 +107,12 @@ function Total({ rotulo, valor, cor, fundo }: { rotulo: string; valor: Decimal; 
   const zerado = ehZero(valor);
   return (
     <View style={[estilos.total, { backgroundColor: zerado ? tema.superficie2 : fundo }]}>
-      <Texto variante="rotulo" cor={zerado ? tema.textoSuave : cor}>{rotulo}</Texto>
-      <Texto variante="grande" cor={zerado ? tema.textoSuave : cor}>{reaisCobrar(valor)}</Texto>
+      <Texto variante="rotulo" cor={zerado ? tema.textoSuave : cor}>
+        {rotulo}
+      </Texto>
+      <Texto variante="grande" cor={zerado ? tema.textoSuave : cor}>
+        {reaisCobrar(valor)}
+      </Texto>
     </View>
   );
 }
@@ -112,8 +123,10 @@ function CartaoGrupo({ grupo }: { grupo: ResumoGrupo }) {
   const meDevem = dec(grupo.te_devem);
 
   let situacao = { texto: 'Tudo certo', cor: tema.textoSuave, fundo: tema.superficie2 };
-  if (!ehZero(devo)) situacao = { texto: `Você deve ${reaisCobrar(devo)}`, cor: tema.negativo, fundo: tema.fundoNegativo };
-  else if (!ehZero(meDevem)) situacao = { texto: `Te devem ${reaisCobrar(meDevem)}`, cor: tema.positivo, fundo: tema.fundoPositivo };
+  if (!ehZero(devo))
+    situacao = { texto: `Você deve ${reaisCobrar(devo)}`, cor: tema.negativo, fundo: tema.fundoNegativo };
+  else if (!ehZero(meDevem))
+    situacao = { texto: `Te devem ${reaisCobrar(meDevem)}`, cor: tema.positivo, fundo: tema.fundoPositivo };
 
   return (
     <Pressable
@@ -124,18 +137,24 @@ function CartaoGrupo({ grupo }: { grupo: ResumoGrupo }) {
       ]}>
       <View style={[estilos.faixa, { backgroundColor: grupo.cor }]} />
       <View style={{ flex: 1, gap: 6, padding: espaco.g }}>
-        <Texto variante="subtitulo" numberOfLines={1}>{grupo.nome}</Texto>
+        <Texto variante="subtitulo" numberOfLines={1}>
+          {grupo.nome}
+        </Texto>
         <Texto variante="suave">
           {grupo.total_membros} {grupo.total_membros === 1 ? 'pessoa' : 'pessoas'} ·{' '}
           {grupo.abatimento ? 'com abatimento' : 'sem abatimento'}
         </Texto>
         <Linha>
           <View style={[estilos.situacao, { backgroundColor: situacao.fundo }]}>
-            <Texto variante="suave" cor={situacao.cor} style={{ fontWeight: '700' }}>{situacao.texto}</Texto>
+            <Texto variante="suave" cor={situacao.cor} style={{ fontWeight: '700' }}>
+              {situacao.texto}
+            </Texto>
           </View>
           {!ehZero(devo) && !ehZero(meDevem) ? (
             <View style={[estilos.situacao, { backgroundColor: tema.fundoPositivo }]}>
-              <Texto variante="suave" cor={tema.positivo} style={{ fontWeight: '700' }}>Te devem {reaisCobrar(meDevem)}</Texto>
+              <Texto variante="suave" cor={tema.positivo} style={{ fontWeight: '700' }}>
+                Te devem {reaisCobrar(meDevem)}
+              </Texto>
             </View>
           ) : null}
         </Linha>
@@ -150,5 +169,12 @@ const estilos = StyleSheet.create({
   cartao: { flexDirection: 'row', borderRadius: raio.g, borderWidth: 1, overflow: 'hidden' },
   faixa: { width: 6 },
   situacao: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: raio.total },
-  contador: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  contador: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

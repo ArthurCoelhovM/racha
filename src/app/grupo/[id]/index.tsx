@@ -2,7 +2,19 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Aviso, Avatar, Botao, BotaoFlutuante, Carregando, Cartao, Linha, Separador, Tela, Texto, Vazio } from '@/components/ui';
+import {
+  Aviso,
+  Avatar,
+  Botao,
+  BotaoFlutuante,
+  Carregando,
+  Cartao,
+  Linha,
+  Separador,
+  Tela,
+  Texto,
+  Vazio,
+} from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
@@ -21,7 +33,7 @@ import {
   pararRecorrente,
 } from '@/lib/api';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
-import { dec, Decimal, ehExato, ehZero, reais, reaisCobrar } from '@/lib/dinheiro';
+import { dec, Decimal, ehExato, ehZero, reais, reaisCobrar, reaisExato } from '@/lib/dinheiro';
 import { diaCurto, isoParaBr, momento } from '@/lib/formatos';
 import { calcularPendencias, resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
@@ -70,7 +82,7 @@ export default function TelaGrupo() {
   if (!dados) return <Tela>{erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}</Tela>;
 
   const { grupo, membros, gastos, historico, recorrentes } = dados;
-  const nome = (u: string) => (u === eu ? 'Você' : nomes.get(u) ?? 'Alguém');
+  const nome = (u: string) => (u === eu ? 'Você' : (nomes.get(u) ?? 'Alguém'));
   const { voceDeve, teDevem } = resumoDoUsuario(pendencias, eu);
 
   async function pagar(p: Pendencia) {
@@ -122,11 +134,19 @@ export default function TelaGrupo() {
           title: grupo.nome,
           headerRight: () => (
             <Linha style={{ gap: 16, paddingHorizontal: 8 }}>
-              <Pressable hitSlop={10} onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: grupo.id } })}>
-                <Texto variante="forte" cor={tema.primaria}>Convidar</Texto>
+              <Pressable
+                hitSlop={10}
+                onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: grupo.id } })}>
+                <Texto variante="forte" cor={tema.primaria}>
+                  Convidar
+                </Texto>
               </Pressable>
-              <Pressable hitSlop={10} onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: grupo.id } })}>
-                <Texto variante="forte" cor={tema.primaria}>Ajustes</Texto>
+              <Pressable
+                hitSlop={10}
+                onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: grupo.id } })}>
+                <Texto variante="forte" cor={tema.primaria}>
+                  Ajustes
+                </Texto>
               </Pressable>
             </Linha>
           ),
@@ -142,14 +162,22 @@ export default function TelaGrupo() {
             <Linha style={{ gap: espaco.xg, flexWrap: 'wrap' }}>
               {!ehZero(voceDeve) ? (
                 <View>
-                  <Texto variante="rotulo" cor={tema.negativo}>Você deve</Texto>
-                  <Texto variante="grande" cor={tema.negativo}>{reais(voceDeve)}</Texto>
+                  <Texto variante="rotulo" cor={tema.negativo}>
+                    Você deve
+                  </Texto>
+                  <Texto variante="grande" cor={tema.negativo}>
+                    {reais(voceDeve)}
+                  </Texto>
                 </View>
               ) : null}
               {!ehZero(teDevem) ? (
                 <View>
-                  <Texto variante="rotulo" cor={tema.positivo}>Te devem</Texto>
-                  <Texto variante="grande" cor={tema.positivo}>{reais(teDevem)}</Texto>
+                  <Texto variante="rotulo" cor={tema.positivo}>
+                    Te devem
+                  </Texto>
+                  <Texto variante="grande" cor={tema.positivo}>
+                    {reais(teDevem)}
+                  </Texto>
                 </View>
               ) : null}
             </Linha>
@@ -232,7 +260,9 @@ export default function TelaGrupo() {
               {recorrentes.map((r) => (
                 <Linha key={r.id} style={{ justifyContent: 'space-between' }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Texto variante="forte" numberOfLines={1}>{r.descricao} · {reais(dec(r.valor_total))}</Texto>
+                    <Texto variante="forte" numberOfLines={1}>
+                      {r.descricao} · {reais(dec(r.valor_total))}
+                    </Texto>
                     <Texto variante="suave">
                       {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}, próximo em {isoParaBr(r.proxima_data)}
                     </Texto>
@@ -250,7 +280,14 @@ export default function TelaGrupo() {
                 {gastos.map((g, i) => (
                   <View key={g.id}>
                     {i > 0 ? <Separador /> : null}
-                    <LinhaGasto g={g} eu={eu} nome={nome} aoAbrir={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id, gastoId: g.id } })} />
+                    <LinhaGasto
+                      g={g}
+                      eu={eu}
+                      nome={nome}
+                      aoAbrir={() =>
+                        router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id, gastoId: g.id } })
+                      }
+                    />
                   </View>
                 ))}
               </Cartao>
@@ -258,9 +295,10 @@ export default function TelaGrupo() {
                 titulo="Exportar gastos em CSV"
                 variante="secundario"
                 aoPressionar={() =>
-                  exportarCsv(`${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`, gastosEmCsv(gastos, nomes)).catch((e) =>
-                    setAviso({ texto: mensagemDeErro(e), tipo: 'erro' }),
-                  )
+                  exportarCsv(
+                    `${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`,
+                    gastosEmCsv(gastos, nomes),
+                  ).catch((e) => setAviso({ texto: mensagemDeErro(e), tipo: 'erro' }))
                 }
               />
             </>
@@ -296,7 +334,10 @@ function Abas({
             accessibilityState={{ selected: ativa }}
             onPress={() => aoMudar(chave)}
             style={[estilos.aba, pequena && { paddingVertical: 6 }, ativa && { backgroundColor: tema.superficie }]}>
-            <Texto variante={pequena ? 'suave' : 'forte'} cor={ativa ? tema.texto : tema.textoSuave} style={{ fontWeight: '700' }}>
+            <Texto
+              variante={pequena ? 'suave' : 'forte'}
+              cor={ativa ? tema.texto : tema.textoSuave}
+              style={{ fontWeight: '700' }}>
               {rotulo}
             </Texto>
           </Pressable>
@@ -330,11 +371,16 @@ function LinhaPendencia({
           <Texto variante="forte" numberOfLines={2}>
             {nome(p.devedor)} deve a {nome(p.credor) === 'Você' ? 'você' : nome(p.credor)}
           </Texto>
-          {p.descricao ? <Texto variante="suave" numberOfLines={1}>{p.descricao}{p.data ? ` · ${diaCurto(p.data)}` : ''}</Texto> : null}
+          {p.descricao ? (
+            <Texto variante="suave" numberOfLines={1}>
+              {p.descricao}
+              {p.data ? ` · ${diaCurto(p.data)}` : ''}
+            </Texto>
+          ) : null}
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Texto variante="subtitulo">{reais(p.cobrar)}</Texto>
-          {!exato ? <Texto variante="suave">exato {reais(p.valor)}…</Texto> : null}
+          {!exato ? <Texto variante="suave">exato {reaisExato(p.valor)}</Texto> : null}
         </View>
       </Linha>
       {euParticipo ? (
@@ -381,8 +427,12 @@ function SaldosPorPessoa({
     return (
       <Cartao>
         <Linha style={{ justifyContent: 'space-between' }}>
-          <Texto variante="rotulo" cor={tema.negativo}>Deve</Texto>
-          <Texto variante="rotulo" cor={tema.positivo}>Recebe</Texto>
+          <Texto variante="rotulo" cor={tema.negativo}>
+            Deve
+          </Texto>
+          <Texto variante="rotulo" cor={tema.positivo}>
+            Recebe
+          </Texto>
         </Linha>
         {saldos.map((s) => {
           const fracao = maior.isZero() ? 0 : Number(s.saldo.abs().div(maior).toFixed(4));
@@ -391,19 +441,32 @@ function SaldosPorPessoa({
             <View key={s.id} style={{ gap: 4, paddingVertical: 6 }}>
               <Linha style={{ justifyContent: 'space-between' }}>
                 <Texto variante="forte">{s.nome}</Texto>
-                <Texto variante="forte" cor={ehZero(s.saldo) ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
+                <Texto
+                  variante="forte"
+                  cor={ehZero(s.saldo) ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
                   {ehZero(s.saldo) ? 'quite' : `${positivo ? '+' : '−'} ${reais(s.saldo.abs())}`}
                 </Texto>
               </Linha>
               <View style={estilos.trilho}>
-                <View style={[estilos.metade, { alignItems: 'flex-end', borderRightWidth: 1, borderColor: tema.borda }]}>
+                <View
+                  style={[estilos.metade, { alignItems: 'flex-end', borderRightWidth: 1, borderColor: tema.borda }]}>
                   {!positivo && !ehZero(s.saldo) ? (
-                    <View style={[estilos.barra, { width: `${Math.max(fracao * 100, 3)}%`, backgroundColor: tema.negativo }]} />
+                    <View
+                      style={[
+                        estilos.barra,
+                        { width: `${Math.max(fracao * 100, 3)}%`, backgroundColor: tema.negativo },
+                      ]}
+                    />
                   ) : null}
                 </View>
                 <View style={estilos.metade}>
                   {positivo ? (
-                    <View style={[estilos.barra, { width: `${Math.max(fracao * 100, 3)}%`, backgroundColor: tema.positivo }]} />
+                    <View
+                      style={[
+                        estilos.barra,
+                        { width: `${Math.max(fracao * 100, 3)}%`, backgroundColor: tema.positivo },
+                      ]}
+                    />
                   ) : null}
                 </View>
               </View>
@@ -423,7 +486,9 @@ function SaldosPorPessoa({
           <Cartao key={s.id} style={estilos.cartaoPessoa}>
             <Linha>
               <Avatar id={s.id} nome={s.nome} />
-              <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>{s.nome}</Texto>
+              <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>
+                {s.nome}
+              </Texto>
             </Linha>
             <Texto variante="rotulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
               {quite ? 'Quite' : positivo ? 'A receber' : 'A pagar'}
@@ -438,7 +503,17 @@ function SaldosPorPessoa({
   );
 }
 
-function LinhaGasto({ g, eu, nome, aoAbrir }: { g: Gasto; eu: string; nome: (u: string) => string; aoAbrir: () => void }) {
+function LinhaGasto({
+  g,
+  eu,
+  nome,
+  aoAbrir,
+}: {
+  g: Gasto;
+  eu: string;
+  nome: (u: string) => string;
+  aoAbrir: () => void;
+}) {
   const tema = useTema();
   const minhaParte = g.divisoes.find((d) => d.usuario_id === eu);
   const pagou = g.pagadores.map((p) => nome(p.usuario_id)).join(' e ');
@@ -446,10 +521,14 @@ function LinhaGasto({ g, eu, nome, aoAbrir }: { g: Gasto; eu: string; nome: (u: 
     <Pressable onPress={aoAbrir} style={({ pressed }) => [estilos.linhaLista, { opacity: pressed ? 0.7 : 1 }]}>
       <Linha>
         <View style={[estilos.data, { backgroundColor: tema.superficie2 }]}>
-          <Texto variante="suave" style={{ fontWeight: '700' }}>{diaCurto(g.data)}</Texto>
+          <Texto variante="suave" style={{ fontWeight: '700' }}>
+            {diaCurto(g.data)}
+          </Texto>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Texto variante="forte" numberOfLines={1}>{g.descricao}</Texto>
+          <Texto variante="forte" numberOfLines={1}>
+            {g.descricao}
+          </Texto>
           <Texto variante="suave" numberOfLines={1}>
             Pago por {pagou}
             {g.recorrente_id ? ' ↻' : ''}
@@ -480,7 +559,9 @@ function descreverHistorico(r: RegistroHistorico, nome: (u: string) => string): 
     }
     case 'membros':
       if (r.acao === 'insert') return `${nome(String(depois.usuario_id))} entrou no grupo`;
-      return depois.ativo ? `${nome(String(depois.usuario_id))} voltou ao grupo` : `${nome(String(depois.usuario_id))} saiu do grupo`;
+      return depois.ativo
+        ? `${nome(String(depois.usuario_id))} voltou ao grupo`
+        : `${nome(String(depois.usuario_id))} saiu do grupo`;
     case 'grupos':
       if (antes.abatimento !== depois.abatimento) {
         return `${quem} ${depois.abatimento ? 'ligou' : 'desligou'} o abatimento`;

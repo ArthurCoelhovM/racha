@@ -51,6 +51,7 @@ function Navegacao() {
         <Stack.Screen name="grupo/[id]/configuracoes" options={{ title: 'Configurações do grupo' }} />
         <Stack.Screen name="grupo/[id]/convite" options={{ title: 'Convidar pessoas' }} />
         <Stack.Screen name="grupo/[id]/gasto" options={{ title: 'Gasto' }} />
+        <Stack.Screen name="grupo/[id]/cupom" options={{ title: 'Ler cupom fiscal' }} />
       </Stack.Protected>
 
       <Stack.Screen name="convite/[codigo]" options={{ title: 'Convite' }} />
@@ -70,8 +71,8 @@ function FaltaConfigurar() {
       <Marca tamanho={28} />
       <Texto variante="subtitulo">Falta ligar o Supabase</Texto>
       <Texto>
-        Copie o arquivo .env.example para .env, preencha EXPO_PUBLIC_SUPABASE_URL e
-        EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY com os dados do seu projeto e reinicie o app.
+        Copie o arquivo .env.example para .env, preencha EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        com os dados do seu projeto e reinicie o app.
       </Texto>
     </View>
   );
