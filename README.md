@@ -1,56 +1,86 @@
-# Welcome to your Expo app 👋
+# Super Organizador 3021
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tricount, com uma regra diferente: **dívidas só se abatem entre duas pessoas**. Se A deve a B e B deve a C, A nunca paga para C.
 
-## Get started
+- Android: APK gerado pelo EAS.
+- iPhone: versão web instalável (abre pelo Safari e vai para a Tela de Início).
+- Banco, login e regras de acesso: Supabase.
 
-1. Install dependencies
+## Regras
 
-   ```bash
-   npm install
-   ```
+| Regra | Como funciona |
+| --- | --- |
+| Abatimento | Configurado por grupo. Ligado: A deve 50 a B e B deve 30 a A, então A paga 20 a B. Desligado (ex.: Casa, com luz e aluguel): cada gasto é cobrado separado. |
+| Terceiros | Nunca existe dívida passando por uma terceira pessoa. |
+| Valores | As partes são guardadas com 18 casas decimais. Na hora de cobrar, o valor é arredondado para cima no centavo (R$ 33,333… vira R$ 33,34). |
+| Vários pagadores | Quem pagou mais que a sua parte recebe de quem pagou menos, na proporção do que adiantou. |
+| Formas de dividir | Igual, valor exato, porcentagem, cotas e por item. Cada grupo escolhe quais permite. |
+| Pagamento | Um toque em "Marcar que paguei" ou "Marcar que recebi". Dá para desfazer. |
+| Histórico | Gastos, pagamentos, entradas, saídas e mudanças de configuração ficam registrados. |
 
-2. Start the app
+## Estrutura
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/app/                 telas (Expo Router)
+  index.tsx              lista de grupos
+  grupo/[id]/index.tsx   dívidas (lista, por pessoa, gráfico), gastos e histórico
+  grupo/[id]/gasto.tsx   novo gasto e edição
+src/lib/divisao.ts       contas de divisão
+src/lib/saldos.ts        quem deve a quem, com e sem abatimento
+src/lib/api.ts           chamadas ao Supabase
+supabase/migrations/     banco: tabelas, RLS, funções e triggers
+supabase/testes/         testes do banco
+testes/                  testes das contas
+public/                  manifesto e ícones da versão web
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## Colocar no ar
 
-### Other setup steps
+### 1. Supabase
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+1. Crie um projeto grátis em supabase.com (região São Paulo).
+2. Abra **SQL Editor**, cole o conteúdo de `supabase/migrations/20261016000000_esquema_inicial.sql` e rode.
+3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email**. O envio de e-mail padrão do Supabase só entrega para pessoas da equipe do projeto e no máximo 2 por hora, então seus amigos não receberiam a confirmação. Para recuperar senha por e-mail, configure um SMTP próprio (Brevo e Resend têm plano grátis) em **Authentication > Emails > SMTP Settings**.
+4. Em **Authentication > URL Configuration**, coloque o endereço da versão web em **Site URL** e adicione `https://SEU-ENDERECO/**` em **Redirect URLs**.
+5. Copie a URL do projeto e a **publishable key** (botão **Connect** ou **Project Settings > API Keys**).
 
-## Learn more
+### 2. Rodar no seu computador
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+cp .env.example .env        # e preencha com os dados do passo anterior
+npm install
+npx expo start              # aperte w para abrir no navegador
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+No Android, dá para testar com o app Expo Go lendo o QR code.
 
-## Join the community
+### 3. Versão web para iPhone (Vercel, grátis)
 
-Join our community of developers creating universal apps.
+1. Suba o projeto para um repositório no GitHub.
+2. Em vercel.com, importe o repositório. O `vercel.json` já define o build (`npx expo export -p web`) e a pasta `dist`.
+3. Em **Settings > Environment Variables**, cadastre as três variáveis do `.env`.
+4. Depois do deploy, no iPhone: abra o endereço no Safari, toque em **Compartilhar** e em **Adicionar à Tela de Início**.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Na Netlify também funciona: build `npx expo export -p web`, pasta `dist`. O arquivo `public/_redirects` já cuida das rotas.
+
+### 4. APK para Android
+
+1. Crie uma conta grátis em expo.dev.
+2. Preencha as variáveis do perfil `apk` em `eas.json`.
+3. Rode `npm run apk`. No fim, o EAS mostra um link para baixar o APK, que você pode mandar para o grupo.
+
+## Testes
+
+```bash
+npm run testes          # contas de divisão, abatimento e arredondamento
+npm run tipos           # TypeScript
+npm run lint
+npm run testes:banco    # precisa de um Postgres local: PGHOST, PGPORT e PGUSER
+```
+
+## Ainda falta
+
+- Notificações push (Android com expo-notifications, iPhone com Web Push).
+- Lembrete de dívida automático (pg_cron + Edge Function). A frequência já é salva por grupo.
+- Gastos recorrentes (aluguel, luz, internet).
+- Leitura de cupom fiscal por foto.

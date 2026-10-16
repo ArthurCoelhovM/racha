@@ -1,98 +1,132 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { DicaInstalar } from '@/components/dica-instalar';
+import { Aviso, Botao, BotaoFlutuante, Carregando, Linha, Tela, Texto, Vazio } from '@/components/ui';
+import { espaco, raio } from '@/constants/tema';
+import { useCarregar } from '@/hooks/use-carregar';
+import { useTema } from '@/hooks/use-tema';
+import { listarMeusGrupos } from '@/lib/api';
+import { dec, Decimal, ehZero, reaisCobrar } from '@/lib/dinheiro';
+import { pegarCodigoPendente } from '@/lib/sessao';
+import type { ResumoGrupo } from '@/lib/tipos';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function Grupos() {
+  const tema = useTema();
+  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(listarMeusGrupos);
+
+  useEffect(() => {
+    const codigo = pegarCodigoPendente();
+    if (codigo) router.push({ pathname: '/entrar-grupo', params: { codigo } });
+  }, []);
+
+  const grupos = dados ?? [];
+  const totalDevo = grupos.reduce((s, g) => s.plus(dec(g.voce_deve)), new Decimal(0));
+  const totalMeDevem = grupos.reduce((s, g) => s.plus(dec(g.te_devem)), new Decimal(0));
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <Tela
+      aoAtualizar={recarregar}
+      atualizando={atualizando}
+      sobreposto={<BotaoFlutuante titulo="+ Grupo" aoPressionar={() => router.push('/grupo/novo')} />}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={() => router.push('/conta')} hitSlop={10} style={{ paddingHorizontal: 8 }}>
+              <Texto variante="forte" cor={tema.primaria}>Conta</Texto>
+            </Pressable>
+          ),
+        }}
+      />
+
+      {carregando ? <Carregando /> : null}
+      {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}
+
+      <DicaInstalar />
+
+      {!carregando && grupos.length > 0 ? (
+        <View style={estilos.totais}>
+          <Total rotulo="Você deve" valor={totalDevo} cor={tema.negativo} fundo={tema.fundoNegativo} />
+          <Total rotulo="Te devem" valor={totalMeDevem} cor={tema.positivo} fundo={tema.fundoPositivo} />
+        </View>
+      ) : null}
+
+      {!carregando && !erro && grupos.length === 0 ? (
+        <Vazio
+          titulo="Nenhum grupo ainda"
+          texto="Crie um grupo para a casa, uma viagem ou o mercado, ou entre num grupo com o código que te mandaram.">
+          <View style={{ gap: espaco.m, alignSelf: 'stretch', marginTop: espaco.m }}>
+            <Botao titulo="Criar grupo" aoPressionar={() => router.push('/grupo/novo')} />
+            <Botao titulo="Entrar com código" variante="secundario" aoPressionar={() => router.push('/entrar-grupo')} />
+          </View>
+        </Vazio>
+      ) : null}
+
+      {grupos.map((g) => (
+        <CartaoGrupo key={g.grupo_id} grupo={g} />
+      ))}
+
+      {grupos.length > 0 ? (
+        <Botao titulo="Entrar com código" variante="secundario" aoPressionar={() => router.push('/entrar-grupo')} />
+      ) : null}
+    </Tela>
   );
 }
 
-export default function HomeScreen() {
+function Total({ rotulo, valor, cor, fundo }: { rotulo: string; valor: Decimal; cor: string; fundo: string }) {
+  const tema = useTema();
+  const zerado = ehZero(valor);
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <View style={[estilos.total, { backgroundColor: zerado ? tema.superficie2 : fundo }]}>
+      <Texto variante="rotulo" cor={zerado ? tema.textoSuave : cor}>{rotulo}</Texto>
+      <Texto variante="grande" cor={zerado ? tema.textoSuave : cor}>{reaisCobrar(valor)}</Texto>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+function CartaoGrupo({ grupo }: { grupo: ResumoGrupo }) {
+  const tema = useTema();
+  const devo = dec(grupo.voce_deve);
+  const meDevem = dec(grupo.te_devem);
+
+  let situacao = { texto: 'Tudo certo', cor: tema.textoSuave, fundo: tema.superficie2 };
+  if (!ehZero(devo)) situacao = { texto: `Você deve ${reaisCobrar(devo)}`, cor: tema.negativo, fundo: tema.fundoNegativo };
+  else if (!ehZero(meDevem)) situacao = { texto: `Te devem ${reaisCobrar(meDevem)}`, cor: tema.positivo, fundo: tema.fundoPositivo };
+
+  return (
+    <Pressable
+      onPress={() => router.push({ pathname: '/grupo/[id]', params: { id: grupo.grupo_id } })}
+      style={({ pressed }) => [
+        estilos.cartao,
+        { backgroundColor: tema.superficie, borderColor: tema.borda, opacity: pressed ? 0.85 : 1 },
+      ]}>
+      <View style={[estilos.faixa, { backgroundColor: grupo.cor }]} />
+      <View style={{ flex: 1, gap: 6, padding: espaco.g }}>
+        <Texto variante="subtitulo" numberOfLines={1}>{grupo.nome}</Texto>
+        <Texto variante="suave">
+          {grupo.total_membros} {grupo.total_membros === 1 ? 'pessoa' : 'pessoas'} ·{' '}
+          {grupo.abatimento ? 'com abatimento' : 'sem abatimento'}
+        </Texto>
+        <Linha>
+          <View style={[estilos.situacao, { backgroundColor: situacao.fundo }]}>
+            <Texto variante="suave" cor={situacao.cor} style={{ fontWeight: '700' }}>{situacao.texto}</Texto>
+          </View>
+          {!ehZero(devo) && !ehZero(meDevem) ? (
+            <View style={[estilos.situacao, { backgroundColor: tema.fundoPositivo }]}>
+              <Texto variante="suave" cor={tema.positivo} style={{ fontWeight: '700' }}>Te devem {reaisCobrar(meDevem)}</Texto>
+            </View>
+          ) : null}
+        </Linha>
+      </View>
+    </Pressable>
+  );
+}
+
+const estilos = StyleSheet.create({
+  totais: { flexDirection: 'row', gap: espaco.m },
+  total: { flex: 1, borderRadius: raio.g, padding: espaco.g, gap: 4 },
+  cartao: { flexDirection: 'row', borderRadius: raio.g, borderWidth: 1, overflow: 'hidden' },
+  faixa: { width: 6 },
+  situacao: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: raio.total },
 });
