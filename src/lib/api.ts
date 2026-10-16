@@ -146,7 +146,33 @@ export async function atualizarGrupo(id: string, g: NovoGrupo): Promise<void> {
 }
 
 export async function entrarNoGrupo(codigo: string): Promise<string> {
-  return checar(await supabase.rpc('entrar_no_grupo', { p_codigo: codigo })) as string;
+  const grupo = checar(await supabase.rpc('entrar_no_grupo', { p_codigo: codigo })) as string | null;
+  if (!grupo) throw new Error('Código de convite não encontrado. Confira as letras e os números.');
+  return grupo;
+}
+
+export async function registrarDispositivo(
+  plataforma: 'expo' | 'web',
+  identificador: string,
+  assinatura: unknown = null,
+): Promise<void> {
+  checar(
+    await supabase.rpc('registrar_dispositivo', {
+      p_plataforma: plataforma,
+      p_identificador: identificador,
+      p_assinatura: assinatura,
+    }),
+  );
+}
+
+export async function removerDispositivo(identificador: string): Promise<void> {
+  checar(await supabase.rpc('remover_dispositivo', { p_identificador: identificador }));
+}
+
+export async function excluirMinhaConta(): Promise<void> {
+  const { error } = await supabase.functions.invoke('excluir-conta', { body: {} });
+  if (error) throw new Error('Não deu para excluir a conta agora. Tente de novo em alguns minutos.');
+  await supabase.auth.signOut();
 }
 
 export async function sairDoGrupo(grupoId: string): Promise<void> {

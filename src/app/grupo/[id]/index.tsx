@@ -9,6 +9,7 @@ import {
   BotaoFlutuante,
   Carregando,
   Cartao,
+  CoresDoGrupo,
   Linha,
   Separador,
   Tela,
@@ -120,194 +121,196 @@ export default function TelaGrupo() {
   }
 
   return (
-    <Tela
-      aoAtualizar={recarregar}
-      atualizando={atualizando}
-      sobreposto={
-        <BotaoFlutuante
-          titulo="+ Gasto"
-          aoPressionar={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id } })}
-        />
-      }>
-      <Stack.Screen
-        options={{
-          title: grupo.nome,
-          headerRight: () => (
-            <Linha style={{ gap: 16, paddingHorizontal: 8 }}>
-              <Pressable
-                hitSlop={10}
-                onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: grupo.id } })}>
-                <Texto variante="forte" cor={tema.primaria}>
-                  Convidar
-                </Texto>
-              </Pressable>
-              <Pressable
-                hitSlop={10}
-                onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: grupo.id } })}>
-                <Texto variante="forte" cor={tema.primaria}>
-                  Ajustes
-                </Texto>
-              </Pressable>
-            </Linha>
-          ),
-        }}
-      />
-
-      <View style={[estilos.resumo, { backgroundColor: tema.superficie, borderColor: tema.borda }]}>
-        <View style={[estilos.faixa, { backgroundColor: grupo.cor }]} />
-        <View style={{ flex: 1, padding: espaco.g, gap: espaco.m }}>
-          {ehZero(voceDeve) && ehZero(teDevem) ? (
-            <Texto variante="titulo">Tudo certo por aqui</Texto>
-          ) : (
-            <Linha style={{ gap: espaco.xg, flexWrap: 'wrap' }}>
-              {!ehZero(voceDeve) ? (
-                <View>
-                  <Texto variante="rotulo" cor={tema.negativo}>
-                    Você deve
-                  </Texto>
-                  <Texto variante="grande" cor={tema.negativo}>
-                    {reais(voceDeve)}
-                  </Texto>
-                </View>
-              ) : null}
-              {!ehZero(teDevem) ? (
-                <View>
-                  <Texto variante="rotulo" cor={tema.positivo}>
-                    Te devem
-                  </Texto>
-                  <Texto variante="grande" cor={tema.positivo}>
-                    {reais(teDevem)}
-                  </Texto>
-                </View>
-              ) : null}
-            </Linha>
-          )}
-          <Texto variante="suave">
-            {grupo.abatimento
-              ? 'Com abatimento: dívidas entre duas pessoas se compensam.'
-              : 'Sem abatimento: cada gasto é cobrado separado.'}
-          </Texto>
-          <Linha style={{ gap: 6, flexWrap: 'wrap' }}>
-            {membros
-              .filter((m) => m.ativo)
-              .map((m) => (
-                <Avatar key={m.usuario_id} id={m.usuario_id} nome={m.perfil.nome} tamanho={28} />
-              ))}
-          </Linha>
-        </View>
-      </View>
-
-      <Abas
-        opcoes={[
-          ['dividas', 'Dívidas'],
-          ['gastos', `Gastos (${gastos.length})`],
-          ['historico', 'Histórico'],
-        ]}
-        valor={aba}
-        aoMudar={(v) => setAba(v as Aba)}
-      />
-
-      {aviso ? (
-        <Aviso
-          texto={aviso.texto}
-          tipo={aviso.tipo}
-          acao={aviso.pagamentoId ? 'Desfazer' : undefined}
-          aoAcionar={aviso.pagamentoId ? () => desfazer(aviso.pagamentoId!) : undefined}
-        />
-      ) : null}
-      {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}
-
-      {aba === 'dividas' ? (
-        <>
-          <Abas
-            pequena
-            opcoes={[
-              ['lista', 'Lista'],
-              ['pessoas', 'Por pessoa'],
-              ['grafico', 'Gráfico'],
-            ]}
-            valor={visao}
-            aoMudar={(v) => setVisao(v as Visao)}
+    <CoresDoGrupo membros={membros}>
+      <Tela
+        aoAtualizar={recarregar}
+        atualizando={atualizando}
+        sobreposto={
+          <BotaoFlutuante
+            titulo="+ Gasto"
+            aoPressionar={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id } })}
           />
-          {pendencias.length === 0 ? (
-            <Vazio titulo="Ninguém deve nada" texto="Quando alguém registrar um gasto, as dívidas aparecem aqui." />
-          ) : visao === 'lista' ? (
-            <Cartao style={{ padding: 0, gap: 0 }}>
-              {pendencias.map((p, i) => (
-                <View key={p.chave}>
-                  {i > 0 ? <Separador /> : null}
-                  <LinhaPendencia
-                    p={p}
-                    nome={nome}
-                    euParticipo={p.devedor === eu || p.credor === eu}
-                    carregando={marcando === p.chave}
-                    aoPagar={() => pagar(p)}
-                  />
-                </View>
-              ))}
-            </Cartao>
-          ) : (
-            <SaldosPorPessoa membros={membros} pendencias={pendencias} nome={nome} grafico={visao === 'grafico'} />
-          )}
-        </>
-      ) : null}
+        }>
+        <Stack.Screen
+          options={{
+            title: grupo.nome,
+            headerRight: () => (
+              <Linha style={{ gap: 16, paddingHorizontal: 8 }}>
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: grupo.id } })}>
+                  <Texto variante="forte" cor={tema.primaria}>
+                    Convidar
+                  </Texto>
+                </Pressable>
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: grupo.id } })}>
+                  <Texto variante="forte" cor={tema.primaria}>
+                    Ajustes
+                  </Texto>
+                </Pressable>
+              </Linha>
+            ),
+          }}
+        />
 
-      {aba === 'gastos' ? (
-        <>
-          {recorrentes.length > 0 ? (
-            <Cartao>
-              <Texto variante="rotulo">Repetem sozinhos</Texto>
-              {recorrentes.map((r) => (
-                <Linha key={r.id} style={{ justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Texto variante="forte" numberOfLines={1}>
-                      {r.descricao} · {reais(dec(r.valor_total))}
+        <View style={[estilos.resumo, { backgroundColor: tema.superficie, borderColor: tema.borda }]}>
+          <View style={[estilos.faixa, { backgroundColor: grupo.cor }]} />
+          <View style={{ flex: 1, padding: espaco.g, gap: espaco.m }}>
+            {ehZero(voceDeve) && ehZero(teDevem) ? (
+              <Texto variante="titulo">Tudo certo por aqui</Texto>
+            ) : (
+              <Linha style={{ gap: espaco.xg, flexWrap: 'wrap' }}>
+                {!ehZero(voceDeve) ? (
+                  <View>
+                    <Texto variante="rotulo" cor={tema.negativo}>
+                      Você deve
                     </Texto>
-                    <Texto variante="suave">
-                      {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}, próximo em {isoParaBr(r.proxima_data)}
+                    <Texto variante="grande" cor={tema.negativo}>
+                      {reais(voceDeve)}
                     </Texto>
                   </View>
-                  <Botao pequeno variante="perigo" titulo="Parar" confirmar="Parar?" aoPressionar={() => parar(r)} />
-                </Linha>
-              ))}
-            </Cartao>
-          ) : null}
-          {gastos.length === 0 ? (
-            <Vazio titulo="Nenhum gasto ainda" texto="Toque em + Gasto para registrar o primeiro." />
-          ) : (
-            <>
+                ) : null}
+                {!ehZero(teDevem) ? (
+                  <View>
+                    <Texto variante="rotulo" cor={tema.positivo}>
+                      Te devem
+                    </Texto>
+                    <Texto variante="grande" cor={tema.positivo}>
+                      {reais(teDevem)}
+                    </Texto>
+                  </View>
+                ) : null}
+              </Linha>
+            )}
+            <Texto variante="suave">
+              {grupo.abatimento
+                ? 'Com abatimento: dívidas entre duas pessoas se compensam.'
+                : 'Sem abatimento: cada gasto é cobrado separado.'}
+            </Texto>
+            <Linha style={{ gap: 6, flexWrap: 'wrap' }}>
+              {membros
+                .filter((m) => m.ativo)
+                .map((m) => (
+                  <Avatar key={m.usuario_id} id={m.usuario_id} nome={m.perfil.nome} tamanho={28} />
+                ))}
+            </Linha>
+          </View>
+        </View>
+
+        <Abas
+          opcoes={[
+            ['dividas', 'Dívidas'],
+            ['gastos', `Gastos (${gastos.length})`],
+            ['historico', 'Histórico'],
+          ]}
+          valor={aba}
+          aoMudar={(v) => setAba(v as Aba)}
+        />
+
+        {aviso ? (
+          <Aviso
+            texto={aviso.texto}
+            tipo={aviso.tipo}
+            acao={aviso.pagamentoId ? 'Desfazer' : undefined}
+            aoAcionar={aviso.pagamentoId ? () => desfazer(aviso.pagamentoId!) : undefined}
+          />
+        ) : null}
+        {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}
+
+        {aba === 'dividas' ? (
+          <>
+            <Abas
+              pequena
+              opcoes={[
+                ['lista', 'Lista'],
+                ['pessoas', 'Por pessoa'],
+                ['grafico', 'Gráfico'],
+              ]}
+              valor={visao}
+              aoMudar={(v) => setVisao(v as Visao)}
+            />
+            {pendencias.length === 0 ? (
+              <Vazio titulo="Ninguém deve nada" texto="Quando alguém registrar um gasto, as dívidas aparecem aqui." />
+            ) : visao === 'lista' ? (
               <Cartao style={{ padding: 0, gap: 0 }}>
-                {gastos.map((g, i) => (
-                  <View key={g.id}>
+                {pendencias.map((p, i) => (
+                  <View key={p.chave}>
                     {i > 0 ? <Separador /> : null}
-                    <LinhaGasto
-                      g={g}
-                      eu={eu}
+                    <LinhaPendencia
+                      p={p}
                       nome={nome}
-                      aoAbrir={() =>
-                        router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id, gastoId: g.id } })
-                      }
+                      euParticipo={p.devedor === eu || p.credor === eu}
+                      carregando={marcando === p.chave}
+                      aoPagar={() => pagar(p)}
                     />
                   </View>
                 ))}
               </Cartao>
-              <Botao
-                titulo="Exportar gastos em CSV"
-                variante="secundario"
-                aoPressionar={() =>
-                  exportarCsv(
-                    `${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`,
-                    gastosEmCsv(gastos, nomes),
-                  ).catch((e) => setAviso({ texto: mensagemDeErro(e), tipo: 'erro' }))
-                }
-              />
-            </>
-          )}
-        </>
-      ) : null}
+            ) : (
+              <SaldosPorPessoa membros={membros} pendencias={pendencias} nome={nome} grafico={visao === 'grafico'} />
+            )}
+          </>
+        ) : null}
 
-      {aba === 'historico' ? <Historico registros={historico} nome={nome} /> : null}
-    </Tela>
+        {aba === 'gastos' ? (
+          <>
+            {recorrentes.length > 0 ? (
+              <Cartao>
+                <Texto variante="rotulo">Repetem sozinhos</Texto>
+                {recorrentes.map((r) => (
+                  <Linha key={r.id} style={{ justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Texto variante="forte" numberOfLines={1}>
+                        {r.descricao} · {reais(dec(r.valor_total))}
+                      </Texto>
+                      <Texto variante="suave">
+                        {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}, próximo em {isoParaBr(r.proxima_data)}
+                      </Texto>
+                    </View>
+                    <Botao pequeno variante="perigo" titulo="Parar" confirmar="Parar?" aoPressionar={() => parar(r)} />
+                  </Linha>
+                ))}
+              </Cartao>
+            ) : null}
+            {gastos.length === 0 ? (
+              <Vazio titulo="Nenhum gasto ainda" texto="Toque em + Gasto para registrar o primeiro." />
+            ) : (
+              <>
+                <Cartao style={{ padding: 0, gap: 0 }}>
+                  {gastos.map((g, i) => (
+                    <View key={g.id}>
+                      {i > 0 ? <Separador /> : null}
+                      <LinhaGasto
+                        g={g}
+                        eu={eu}
+                        nome={nome}
+                        aoAbrir={() =>
+                          router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id, gastoId: g.id } })
+                        }
+                      />
+                    </View>
+                  ))}
+                </Cartao>
+                <Botao
+                  titulo="Exportar gastos em CSV"
+                  variante="secundario"
+                  aoPressionar={() =>
+                    exportarCsv(
+                      `${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`,
+                      gastosEmCsv(gastos, nomes),
+                    ).catch((e) => setAviso({ texto: mensagemDeErro(e), tipo: 'erro' }))
+                  }
+                />
+              </>
+            )}
+          </>
+        ) : null}
+
+        {aba === 'historico' ? <Historico registros={historico} nome={nome} /> : null}
+      </Tela>
+    </CoresDoGrupo>
   );
 }
 

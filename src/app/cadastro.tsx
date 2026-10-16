@@ -2,10 +2,12 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { Aviso, Botao, Campo, Tela, Texto } from '@/components/ui';
+import { useTema } from '@/hooks/use-tema';
 import { traduzirErroAuth } from '@/lib/erros-auth';
 import { supabase, urlDoSite } from '@/lib/supabase';
 
 export default function Cadastro() {
+  const tema = useTema();
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -68,6 +70,17 @@ export default function Cadastro() {
       />
       {erro ? <Aviso texto={erro} /> : null}
       <Botao titulo="Criar conta" aoPressionar={cadastrar} carregando={carregando} />
+      <Texto variante="suave" style={{ textAlign: 'center' }}>
+        Ao criar a conta você concorda com a{' '}
+        <Texto
+          variante="suave"
+          cor={tema.primaria}
+          style={{ fontWeight: '700' }}
+          aoPressionar={() => router.push('/privacidade')}>
+          política de privacidade
+        </Texto>
+        .
+      </Texto>
     </Tela>
   );
 }

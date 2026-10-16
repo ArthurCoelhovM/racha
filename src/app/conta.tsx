@@ -1,8 +1,9 @@
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 
-import { Aviso, Botao, Campo, Cartao, Tela, Texto } from '@/components/ui';
-import { atualizarMeuNome, buscarMeuPerfil, mensagemDeErro } from '@/lib/api';
+import { Aviso, Botao, Campo, Cartao, Interruptor, Separador, Tela, Texto } from '@/components/ui';
+import { atualizarMeuNome, buscarMeuPerfil, excluirMinhaConta, mensagemDeErro } from '@/lib/api';
+import { ativarPush, desativarPush, situacaoPush, type SituacaoPush } from '@/lib/push';
 import { useSessao } from '@/lib/sessao';
 import { supabase } from '@/lib/supabase';
 
@@ -11,6 +12,9 @@ export default function Conta() {
   const [nome, setNome] = useState('');
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'erro' | 'ok' } | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [push, setPush] = useState<SituacaoPush | null>(null);
+  const [mudandoPush, setMudandoPush] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
   useEffect(() => {
     if (!usuarioId) return;
@@ -18,6 +22,14 @@ export default function Conta() {
       .then((p) => setNome(p.nome))
       .catch((e) => setAviso({ texto: mensagemDeErro(e), tipo: 'erro' }));
   }, [usuarioId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      situacaoPush()
+        .then(setPush)
+        .catch(() => setPush({ disponivel: false, ativo: false, motivo: 'Não deu para checar as notificações.' }));
+    }, []),
+  );
 
   async function salvar() {
     if (!usuarioId || !nome.trim()) return;
@@ -32,6 +44,40 @@ export default function Conta() {
     }
   }
 
+  async function mudarPush(ligar: boolean) {
+    setMudandoPush(true);
+    setAviso(null);
+    try {
+      if (ligar) await ativarPush();
+      else await desativarPush();
+      setPush(await situacaoPush());
+      setAviso({
+        texto: ligar ? 'Notificações ligadas neste aparelho.' : 'Notificações desligadas neste aparelho.',
+        tipo: 'ok',
+      });
+    } catch (e) {
+      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+    } finally {
+      setMudandoPush(false);
+    }
+  }
+
+  async function sair() {
+    await desativarPush().catch(() => {});
+    await supabase.auth.signOut();
+  }
+
+  async function excluir() {
+    setExcluindo(true);
+    try {
+      await desativarPush().catch(() => {});
+      await excluirMinhaConta();
+    } catch (e) {
+      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+      setExcluindo(false);
+    }
+  }
+
   return (
     <Tela>
       <Cartao>
@@ -39,14 +85,43 @@ export default function Conta() {
         <Texto variante="forte">{sessao?.user.email}</Texto>
       </Cartao>
       <Campo rotulo="Seu nome no grupo" value={nome} onChangeText={setNome} onSubmitEditing={salvar} />
-      {aviso ? <Aviso texto={aviso.texto} tipo={aviso.tipo} /> : null}
       <Botao titulo="Salvar nome" aoPressionar={salvar} carregando={salvando} />
+
+      <Cartao>
+        {push?.disponivel ? (
+          <Interruptor
+            titulo="Notificações neste aparelho"
+            descricao="Gastos novos, pagamentos e lembretes de dívida."
+            valor={push.ativo}
+            aoMudar={(v) => {
+              if (!mudandoPush) mudarPush(v);
+            }}
+          />
+        ) : (
+          <>
+            <Texto variante="forte">Notificações neste aparelho</Texto>
+            <Texto variante="suave">{push?.motivo ?? 'Verificando…'}</Texto>
+          </>
+        )}
+      </Cartao>
+
+      {aviso ? <Aviso texto={aviso.texto} tipo={aviso.tipo} /> : null}
+
       <Botao titulo="Trocar senha" variante="secundario" aoPressionar={() => router.push('/nova-senha')} />
+      <Botao titulo="Política de privacidade" variante="secundario" aoPressionar={() => router.push('/privacidade')} />
+      <Botao titulo="Sair da conta" variante="perigo" confirmar="Toque de novo para sair" aoPressionar={sair} />
+
+      <Separador />
+      <Texto variante="suave">
+        Excluir a conta apaga seu nome, e-mail, aparelhos e avisos. Os gastos que você dividiu continuam no histórico
+        dos grupos como &quot;Conta excluída&quot;.
+      </Texto>
       <Botao
-        titulo="Sair da conta"
+        titulo="Excluir minha conta"
         variante="perigo"
-        confirmar="Toque de novo para sair"
-        aoPressionar={() => supabase.auth.signOut()}
+        confirmar="Toque de novo: não dá para desfazer"
+        aoPressionar={excluir}
+        carregando={excluindo}
       />
     </Tela>
   );

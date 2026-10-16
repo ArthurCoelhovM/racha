@@ -20,6 +20,9 @@ App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tri
 | Avisos | Gasto novo, pagamento marcado e gente nova no grupo geram um aviso para quem foi afetado (quem fez a ação não é avisado). |
 | Lembretes | Todo dia às 9h o banco lembra quem está devendo, respeitando a frequência escolhida em cada grupo. |
 | Recorrentes | Um gasto pode se repetir todo mês ou toda semana. O lançamento acontece sozinho e cada um pode ser editado depois. |
+| Notificações | Cada aviso também chega como notificação: no Android pelo app, no iPhone pela versão web instalada na Tela de Início. Liga e desliga em Sua conta. |
+| Privacidade | Política de privacidade no app e botão "Excluir minha conta": nome, e-mail, aparelhos e avisos são apagados; os gastos ficam no histórico do grupo como "Conta excluída". |
+| Convites | Depois de 8 códigos errados em 15 minutos, a pessoa precisa esperar para tentar de novo. |
 | Cupom fiscal | O QR code da NFC-e (câmera, foto ou link colado) vira os itens da divisão "Por item". O desconto da nota é distribuído entre os itens. |
 
 ## Estrutura
@@ -65,6 +68,23 @@ npx supabase functions deploy ler-nfce
 
 A função só aceita links de sites `.gov.br` com os parâmetros da NFC-e e só atende usuários logados. Ela lê o modelo de página usado pela maioria dos estados (tabela `tabResult`). Se algum estado usar outro formato, o app avisa e a pessoa digita os itens.
 
+### 1c. Notificações push e exclusão de conta
+
+1. Gere as chaves das notificações do navegador:
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+2. Guarde os segredos das funções (invente um segredo longo para o webhook):
+   ```bash
+   npx supabase secrets set VAPID_CHAVE_PUBLICA=... VAPID_CHAVE_PRIVADA=... VAPID_CONTATO=mailto:seu@email.com PUSH_WEBHOOK_SEGREDO=...
+   npx supabase functions deploy enviar-push --no-verify-jwt
+   npx supabase functions deploy excluir-conta
+   ```
+3. No painel do Supabase, abra **Database Webhooks** e crie um webhook na tabela `avisos`, evento **Insert**, do tipo HTTP Request (POST) para `https://SEU-PROJETO.supabase.co/functions/v1/enviar-push`, com o cabeçalho `x-segredo` igual ao `PUSH_WEBHOOK_SEGREDO`.
+4. Coloque a chave pública em `EXPO_PUBLIC_VAPID_PUBLIC_KEY` (no `.env`, na Vercel e no `eas.json`).
+5. **Android:** rode `npx eas-cli@latest init` para ligar o app a um projeto no expo.dev e cadastre as credenciais do Firebase (FCM V1) no EAS, seguindo o guia "Add Android FCM V1 credentials" da documentação do Expo. No Expo Go as notificações não funcionam; só no APK.
+6. **iPhone:** a pessoa instala o app pela Tela de Início (Safari, Compartilhar, Adicionar à Tela de Início), abre por lá e liga em **Sua conta**.
+
 ### 2. Rodar no seu computador
 
 ```bash
@@ -103,5 +123,5 @@ npm run testes:banco    # precisa de um Postgres local: PGHOST, PGPORT e PGUSER
 
 ## Ainda falta
 
-- Notificações push no celular (Android com expo-notifications, iPhone com Web Push). Os avisos já existem dentro do app; o push só vai entregá-los.
+- Testar a entrega das notificações em celulares de verdade (os testes usam serviços de push simulados).
 - Conferir a leitura do cupom com notas reais de cada estado que o grupo usa (os testes usam páginas-modelo).

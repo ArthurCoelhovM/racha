@@ -10,7 +10,9 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://SEU-PROJETO.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_...",
-        "EXPO_PUBLIC_SITE_URL": "https://super-organizador.vercel.app"
+        "EXPO_PUBLIC_SITE_URL": "https://super-organizador.vercel.app",
+        "EXPO_PUBLIC_VAPID_PUBLIC_KEY": "cole-a-chave-publica-vapid",
+        "EXPO_PUBLIC_CONTATO_PRIVACIDADE": "seu-email@exemplo.com"
       }
     }
   }

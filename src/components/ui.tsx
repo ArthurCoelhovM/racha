@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { corDaPessoa, espaco, larguraMaxima, raio } from '@/constants/tema';
+import { coresGrupo, corDaPessoa, espaco, larguraMaxima, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 
 // ---------- Texto ----------
@@ -30,17 +30,23 @@ export function Texto({
   style,
   children,
   numberOfLines,
+  aoPressionar,
 }: {
   variante?: VarianteTexto;
   cor?: string;
   style?: StyleProp<TextStyle>;
   children: ReactNode;
   numberOfLines?: number;
+  aoPressionar?: () => void;
 }) {
   const tema = useTema();
   const corPadrao = variante === 'suave' || variante === 'rotulo' ? tema.textoSuave : tema.texto;
   return (
-    <Text numberOfLines={numberOfLines} style={[estilosTexto[variante], { color: cor ?? corPadrao }, style]}>
+    <Text
+      numberOfLines={numberOfLines}
+      onPress={aoPressionar}
+      accessibilityRole={aoPressionar ? 'link' : undefined}
+      style={[estilosTexto[variante], { color: cor ?? corPadrao }, style]}>
       {children}
     </Text>
   );
@@ -236,13 +242,37 @@ export function Cartao({ children, style }: { children: ReactNode; style?: Style
 
 // ---------- Avatar ----------
 
+// dentro de um grupo, cada pessoa ganha uma cor diferente, pela ordem de entrada
+// e a inicial vem do nome de verdade, mesmo quando a tela mostra "Você"
+type Pessoa = { cor: string; nome: string | null };
+const ContextoCores = createContext<Map<string, Pessoa>>(new Map());
+
+export function CoresDoGrupo({
+  membros,
+  children,
+}: {
+  membros: { usuario_id: string; perfil?: { nome: string } }[];
+  children: ReactNode;
+}) {
+  const mapa = new Map(
+    membros.map((m, i) => [m.usuario_id, { cor: coresGrupo[i % coresGrupo.length], nome: m.perfil?.nome ?? null }]),
+  );
+  return <ContextoCores.Provider value={mapa}>{children}</ContextoCores.Provider>;
+}
+
 export function Avatar({ id, nome, tamanho = 32 }: { id: string; nome: string; tamanho?: number }) {
-  const inicial = (nome.trim()[0] ?? '?').toUpperCase();
+  const pessoa = useContext(ContextoCores).get(id);
+  const inicial = ((pessoa?.nome || nome).trim()[0] ?? '?').toUpperCase();
   return (
     <View
       style={[
         estilos.avatar,
-        { width: tamanho, height: tamanho, borderRadius: tamanho / 2, backgroundColor: corDaPessoa(id) },
+        {
+          width: tamanho,
+          height: tamanho,
+          borderRadius: tamanho / 2,
+          backgroundColor: pessoa?.cor ?? corDaPessoa(id),
+        },
       ]}>
       <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: tamanho * 0.42 }}>{inicial}</Text>
     </View>

@@ -1,24 +1,12 @@
 // Edge Function: recebe o link do QR code da NFC-e, consulta o site da Sefaz e devolve os itens.
 // Publicar: npx supabase functions deploy ler-nfce
+import { cors, resposta } from '../_shared/cors.ts';
 import { lerNfce, validarUrlNfce } from '../_shared/nfce.ts';
-
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
 
 const hostsExtras = (Deno.env.get('NFCE_HOSTS_EXTRAS') ?? '')
   .split(',')
   .map((h) => h.trim())
   .filter(Boolean);
-
-function resposta(corpo: unknown, status = 200) {
-  return new Response(JSON.stringify(corpo), {
-    status,
-    headers: { ...cors, 'Content-Type': 'application/json; charset=utf-8' },
-  });
-}
 
 // alguns estados ainda respondem em ISO-8859-1
 function decodificar(bytes: ArrayBuffer, tipo: string | null): string {

@@ -52,7 +52,9 @@ select testes.deve_falhar(format(
   $q$select public.salvar_gasto('{"grupo_id": "%s", "descricao": "x", "valor_total": 10, "tipo_divisao": "igual",
      "pagadores": [{"usuario_id": "%s", "valor": 10}], "divisoes": [{"usuario_id": "%s", "valor": 10}]}'::jsonb)$q$,
   :'mercado', :'dani', :'dani'), 'não participa') \g /dev/null
-select testes.deve_falhar('select public.entrar_no_grupo(''ZZZZZZ'')', 'não encontrado') \g /dev/null
+do $$ begin
+  assert public.entrar_no_grupo('ZZZZZZ') is null, 'código inexistente devolve nulo';
+end $$;
 
 -- ---------------------------------------------------------------
 -- Mercado (com abatimento): o exemplo do roteiro

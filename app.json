@@ -46,6 +46,12 @@
           "cameraPermission": "O Super Organizador usa a câmera para ler o QR code do cupom fiscal.",
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5B4CF0"
+        }
       ]
     ],
     "experiments": {

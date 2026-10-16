@@ -21,8 +21,9 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Tipos da Edge Function
-        run: deno check supabase/functions/ler-nfce/index.ts
+      - name: Tipos das Edge Functions
+        working-directory: supabase/functions
+        run: deno check */index.ts
       - name: Build da versão web
         run: npx expo export -p web
         env:

@@ -9,6 +9,7 @@ import {
   Campo,
   Carregando,
   Cartao,
+  CoresDoGrupo,
   Ficha,
   Fichas,
   Interruptor,
@@ -57,7 +58,7 @@ export default function TelaGasto() {
         listarMembros(id),
         gastoId ? buscarGasto(gastoId) : Promise.resolve(null),
       ]);
-      return { grupo, membros: membros.filter((m) => m.ativo), gasto };
+      return { grupo, membros: membros.filter((m) => m.ativo), todos: membros, gasto };
     },
     `${id}|${gastoId ?? ''}`,
   );
@@ -66,13 +67,15 @@ export default function TelaGasto() {
   if (!dados) return <Tela>{erro ? <Aviso texto={erro} /> : null}</Tela>;
 
   return (
-    <Formulario
-      key={dados.gasto?.id ?? 'novo'}
-      grupo={dados.grupo}
-      membros={dados.membros}
-      gasto={dados.gasto}
-      eu={usuarioId ?? ''}
-    />
+    <CoresDoGrupo membros={dados.todos}>
+      <Formulario
+        key={dados.gasto?.id ?? 'novo'}
+        grupo={dados.grupo}
+        membros={dados.membros}
+        gasto={dados.gasto}
+        eu={usuarioId ?? ''}
+      />
+    </CoresDoGrupo>
   );
 }
 

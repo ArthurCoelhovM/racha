@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Marca } from '@/components/marca';
 import { Texto } from '@/components/ui';
 import { useEscuro, useTema } from '@/hooks/use-tema';
+import { useToqueNotificacao } from '@/hooks/use-toque-notificacao';
 import { ProvedorSessao, useSessao } from '@/lib/sessao';
 import { supabaseConfigurado } from '@/lib/supabase';
 
@@ -20,6 +21,8 @@ function Navegacao() {
   useEffect(() => {
     if (!carregando) SplashScreen.hideAsync();
   }, [carregando]);
+
+  useToqueNotificacao(!carregando && !!sessao);
 
   if (carregando) return null;
   const logado = !!sessao;
@@ -55,6 +58,7 @@ function Navegacao() {
       </Stack.Protected>
 
       <Stack.Screen name="convite/[codigo]" options={{ title: 'Convite' }} />
+      <Stack.Screen name="privacidade" options={{ title: 'Privacidade' }} />
     </Stack>
   );
 }
