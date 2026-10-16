@@ -9,34 +9,39 @@ import { useTema } from '@/hooks/use-tema';
 import {
   buscarGrupo,
   desfazerPagamento,
+  lancarMeusRecorrentes,
   listarDividas,
   listarGastos,
   listarHistorico,
   listarMembros,
   listarPagamentos,
+  listarRecorrentes,
   marcarPago,
   mensagemDeErro,
+  pararRecorrente,
 } from '@/lib/api';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
 import { dec, Decimal, ehExato, ehZero, reais, reaisCobrar } from '@/lib/dinheiro';
-import { diaCurto, momento } from '@/lib/formatos';
+import { diaCurto, isoParaBr, momento } from '@/lib/formatos';
 import { calcularPendencias, resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
-import type { Gasto, Membro, RegistroHistorico } from '@/lib/tipos';
+import type { Gasto, Membro, Recorrente, RegistroHistorico } from '@/lib/tipos';
 
 type Aba = 'dividas' | 'gastos' | 'historico';
 type Visao = 'lista' | 'pessoas' | 'grafico';
 
 async function carregarTudo(id: string) {
-  const [grupo, membros, gastos, dividas, pagamentos, historico] = await Promise.all([
+  await lancarMeusRecorrentes();
+  const [grupo, membros, gastos, dividas, pagamentos, historico, recorrentes] = await Promise.all([
     buscarGrupo(id),
     listarMembros(id),
     listarGastos(id),
     listarDividas(id),
     listarPagamentos(id),
     listarHistorico(id),
+    listarRecorrentes(id),
   ]);
-  return { grupo, membros, gastos, dividas, pagamentos, historico };
+  return { grupo, membros, gastos, dividas, pagamentos, historico, recorrentes };
 }
 
 export default function TelaGrupo() {
@@ -64,7 +69,7 @@ export default function TelaGrupo() {
   if (carregando) return <Carregando />;
   if (!dados) return <Tela>{erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}</Tela>;
 
-  const { grupo, membros, gastos, historico } = dados;
+  const { grupo, membros, gastos, historico, recorrentes } = dados;
   const nome = (u: string) => (u === eu ? 'Você' : nomes.get(u) ?? 'Alguém');
   const { voceDeve, teDevem } = resumoDoUsuario(pendencias, eu);
 
@@ -79,6 +84,16 @@ export default function TelaGrupo() {
       setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
     } finally {
       setMarcando(null);
+    }
+  }
+
+  async function parar(r: Recorrente) {
+    try {
+      await pararRecorrente(r.id);
+      setAviso({ texto: `"${r.descricao}" não vai mais se repetir.`, tipo: 'ok' });
+      recarregar();
+    } catch (e) {
+      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
     }
   }
 
@@ -211,6 +226,22 @@ export default function TelaGrupo() {
 
       {aba === 'gastos' ? (
         <>
+          {recorrentes.length > 0 ? (
+            <Cartao>
+              <Texto variante="rotulo">Repetem sozinhos</Texto>
+              {recorrentes.map((r) => (
+                <Linha key={r.id} style={{ justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Texto variante="forte" numberOfLines={1}>{r.descricao} · {reais(dec(r.valor_total))}</Texto>
+                    <Texto variante="suave">
+                      {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}, próximo em {isoParaBr(r.proxima_data)}
+                    </Texto>
+                  </View>
+                  <Botao pequeno variante="perigo" titulo="Parar" confirmar="Parar?" aoPressionar={() => parar(r)} />
+                </Linha>
+              ))}
+            </Cartao>
+          ) : null}
           {gastos.length === 0 ? (
             <Vazio titulo="Nenhum gasto ainda" texto="Toque em + Gasto para registrar o primeiro." />
           ) : (
@@ -419,7 +450,10 @@ function LinhaGasto({ g, eu, nome, aoAbrir }: { g: Gasto; eu: string; nome: (u: 
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Texto variante="forte" numberOfLines={1}>{g.descricao}</Texto>
-          <Texto variante="suave" numberOfLines={1}>Pago por {pagou}</Texto>
+          <Texto variante="suave" numberOfLines={1}>
+            Pago por {pagou}
+            {g.recorrente_id ? ' ↻' : ''}
+          </Texto>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Texto variante="forte">{reais(dec(g.valor_total))}</Texto>

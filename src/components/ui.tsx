@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -300,10 +301,14 @@ export function Interruptor({
         onValueChange={aoMudar}
         trackColor={{ true: tema.primaria, false: tema.borda }}
         thumbColor="#FFFFFF"
+        {...somenteWeb}
       />
     </Pressable>
   );
 }
+
+// no navegador a bolinha ligada tem cor própria
+const somenteWeb = Platform.OS === 'web' ? ({ activeThumbColor: '#FFFFFF' } as object) : {};
 
 // ---------- Aviso ----------
 

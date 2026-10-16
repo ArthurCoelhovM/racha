@@ -43,3 +43,16 @@ export function textoLembrete(dias: number): string {
   if (dias === 30) return 'Todo mês';
   return `A cada ${dias} dias`;
 }
+
+// mesma regra do banco: no mensal, dia 31 vira o último dia dos meses curtos
+export function proximaOcorrencia(iso: string, frequencia: 'mensal' | 'semanal', dia: number): string {
+  const [ano, mes, d] = iso.split('-').map(Number);
+  if (frequencia === 'semanal') {
+    const data = new Date(Date.UTC(ano, mes - 1, d + 7));
+    return data.toISOString().slice(0, 10);
+  }
+  const proximoMes = new Date(Date.UTC(ano, mes, 1));
+  const ultimoDia = new Date(Date.UTC(proximoMes.getUTCFullYear(), proximoMes.getUTCMonth() + 1, 0)).getUTCDate();
+  proximoMes.setUTCDate(Math.min(dia, ultimoDia));
+  return proximoMes.toISOString().slice(0, 10);
+}

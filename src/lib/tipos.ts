@@ -58,6 +58,7 @@ export type Gasto = {
   itens: Item[] | null;
   criado_por: string;
   criado_em: string;
+  recorrente_id: string | null;
   pagadores: { usuario_id: string; valor: string }[];
   divisoes: { usuario_id: string; parametro: string | null; valor: string }[];
 };
@@ -90,4 +91,26 @@ export type RegistroHistorico = {
   antes: Record<string, unknown> | null;
   depois: Record<string, unknown> | null;
   criado_em: string;
+};
+
+export type Aviso = {
+  id: number;
+  grupo_id: string | null;
+  tipo: 'gasto_novo' | 'pagamento' | 'membro' | 'lembrete' | 'recorrente_parado';
+  titulo: string;
+  corpo: string;
+  dados: Record<string, unknown> | null;
+  lido: boolean;
+  criado_em: string;
+};
+
+export type Frequencia = 'mensal' | 'semanal';
+
+export type Recorrente = {
+  id: string;
+  descricao: string;
+  valor_total: string;
+  frequencia: Frequencia;
+  proxima_data: string;
+  ativo: boolean;
 };

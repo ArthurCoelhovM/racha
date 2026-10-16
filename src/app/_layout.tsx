@@ -43,6 +43,7 @@ function Navegacao() {
       <Stack.Protected guard={logado}>
         <Stack.Screen name="index" options={{ title: 'Seus grupos' }} />
         <Stack.Screen name="conta" options={{ title: 'Sua conta' }} />
+        <Stack.Screen name="avisos" options={{ title: 'Avisos' }} />
         <Stack.Screen name="nova-senha" options={{ title: 'Nova senha' }} />
         <Stack.Screen name="entrar-grupo" options={{ title: 'Entrar em um grupo' }} />
         <Stack.Screen name="grupo/novo" options={{ title: 'Novo grupo' }} />

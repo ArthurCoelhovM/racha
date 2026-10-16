@@ -2,12 +2,15 @@ import type { Decimal } from './dinheiro';
 import type { Parte, Pagador } from './divisao';
 import { supabase } from './supabase';
 import type {
+  Aviso,
   Divida,
+  Frequencia,
   Gasto,
   Grupo,
   Item,
   Membro,
   Pagamento,
+  Recorrente,
   RegistroHistorico,
   ResumoGrupo,
   TipoDivisao,
@@ -53,7 +56,7 @@ export async function listarGastos(grupoId: string): Promise<Gasto[]> {
     await supabase
       .from('gastos')
       .select(
-        'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, ' +
+        'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, ' +
           'pagadores:gasto_pagadores(usuario_id, valor::text), ' +
           'divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)',
       )
@@ -68,7 +71,7 @@ export async function buscarGasto(id: string): Promise<Gasto> {
     await supabase
       .from('gastos')
       .select(
-        'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, ' +
+        'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, ' +
           'pagadores:gasto_pagadores(usuario_id, valor::text), ' +
           'divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)',
       )
@@ -163,8 +166,8 @@ export type GastoParaSalvar = {
   partes: Parte[];
 };
 
-export async function salvarGasto(g: GastoParaSalvar): Promise<string> {
-  const payload = {
+function montarPayload(g: GastoParaSalvar) {
+  return {
     id: g.id ?? null,
     grupo_id: g.grupoId,
     descricao: g.descricao,
@@ -175,7 +178,63 @@ export async function salvarGasto(g: GastoParaSalvar): Promise<string> {
     pagadores: g.pagadores.map((p) => ({ usuario_id: p.usuario_id, valor: p.valor.toFixed(2) })),
     divisoes: g.partes.map((p) => ({ usuario_id: p.usuario_id, parametro: p.parametro, valor: p.valor.toString() })),
   };
-  return checar(await supabase.rpc('salvar_gasto', { p: payload })) as string;
+}
+
+export async function salvarGasto(g: GastoParaSalvar): Promise<string> {
+  return checar(await supabase.rpc('salvar_gasto', { p: montarPayload(g) })) as string;
+}
+
+export async function criarRecorrente(g: GastoParaSalvar, frequencia: Frequencia, primeiroGastoId: string): Promise<string> {
+  return checar(
+    await supabase.rpc('criar_recorrente', {
+      p: montarPayload({ ...g, id: undefined }),
+      p_frequencia: frequencia,
+      p_gasto: primeiroGastoId,
+    }),
+  ) as string;
+}
+
+export async function pararRecorrente(id: string): Promise<void> {
+  checar(await supabase.rpc('parar_recorrente', { p_id: id }));
+}
+
+export async function lancarMeusRecorrentes(): Promise<number> {
+  try {
+    return (checar(await supabase.rpc('lancar_meus_recorrentes')) as number) ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function listarRecorrentes(grupoId: string): Promise<Recorrente[]> {
+  return checar(
+    await supabase
+      .from('recorrentes')
+      .select('id, descricao, valor_total::text, frequencia, proxima_data, ativo')
+      .eq('grupo_id', grupoId)
+      .eq('ativo', true)
+      .order('proxima_data'),
+  ) as unknown as Recorrente[];
+}
+
+export async function listarAvisos(): Promise<Aviso[]> {
+  return checar(
+    await supabase
+      .from('avisos')
+      .select('id, grupo_id, tipo, titulo, corpo, dados, lido, criado_em')
+      .order('criado_em', { ascending: false })
+      .limit(60),
+  ) as Aviso[];
+}
+
+export async function contarAvisosNaoLidos(): Promise<number> {
+  const { count, error } = await supabase.from('avisos').select('id', { count: 'exact', head: true }).eq('lido', false);
+  if (error) throw new Error(mensagemDeErro(error));
+  return count ?? 0;
+}
+
+export async function marcarAvisosLidos(): Promise<void> {
+  checar(await supabase.from('avisos').update({ lido: true }).eq('lido', false));
 }
 
 export async function excluirGasto(id: string): Promise<void> {

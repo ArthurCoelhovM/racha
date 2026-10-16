@@ -136,3 +136,12 @@ test('dízima na dívida vira cobrança arredondada para cima', () => {
   );
   assert.equal(quitado.length, 0);
 });
+
+test('próxima data do recorrente segue a mesma regra do banco', async () => {
+  const { proximaOcorrencia } = await import('../src/lib/formatos');
+  assert.equal(proximaOcorrencia('2026-01-31', 'mensal', 31), '2026-02-28');
+  assert.equal(proximaOcorrencia('2026-02-28', 'mensal', 31), '2026-03-31');
+  assert.equal(proximaOcorrencia('2028-01-31', 'mensal', 31), '2028-02-29');
+  assert.equal(proximaOcorrencia('2026-12-15', 'mensal', 15), '2027-01-15');
+  assert.equal(proximaOcorrencia('2026-12-28', 'semanal', 28), '2027-01-04');
+});

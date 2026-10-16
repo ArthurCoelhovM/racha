@@ -2,16 +2,16 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Aviso, Avatar, Botao, Campo, Carregando, Cartao, Ficha, Fichas, Linha, Separador, Tela, Texto } from '@/components/ui';
+import { Aviso, Avatar, Botao, Campo, Carregando, Cartao, Ficha, Fichas, Interruptor, Linha, Separador, Tela, Texto } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { buscarGasto, buscarGrupo, excluirGasto, listarMembros, mensagemDeErro, salvarGasto } from '@/lib/api';
+import { buscarGasto, buscarGrupo, criarRecorrente, excluirGasto, listarMembros, mensagemDeErro, salvarGasto } from '@/lib/api';
 import { Decimal, ehExato, lerValor, paraCampo, reais } from '@/lib/dinheiro';
 import { calcularDivisao, calcularPagadores, totalDosItens } from '@/lib/divisao';
-import { brParaIso, hojeIso, isoParaBr } from '@/lib/formatos';
+import { brParaIso, hojeIso, isoParaBr, proximaOcorrencia } from '@/lib/formatos';
 import { useSessao } from '@/lib/sessao';
-import { TIPOS_DIVISAO, type Gasto, type Grupo, type Item, type Membro, type TipoDivisao } from '@/lib/tipos';
+import { TIPOS_DIVISAO, type Frequencia, type Gasto, type Grupo, type Item, type Membro, type TipoDivisao } from '@/lib/tipos';
 
 export default function TelaGasto() {
   const { id, gastoId } = useLocalSearchParams<{ id: string; gastoId?: string }>();
@@ -87,6 +87,8 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
       : [novoItem(ids)],
   );
 
+  const [repetir, setRepetir] = useState(false);
+  const [frequencia, setFrequencia] = useState<Frequencia>('mensal');
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -112,7 +114,7 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
     setErro(null);
     setSalvando(true);
     try {
-      await salvarGasto({
+      const dadosGasto = {
         id: gasto?.id,
         grupoId: grupo.id,
         descricao: descricao.trim(),
@@ -125,7 +127,9 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
             : null,
         pagadores: pagadores.pagadores,
         partes: divisao.partes,
-      });
+      };
+      const novoId = await salvarGasto(dadosGasto);
+      if (!gasto && repetir) await criarRecorrente(dadosGasto, frequencia, novoId);
       router.back();
     } catch (e) {
       setErro(mensagemDeErro(e));
@@ -161,6 +165,8 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
   }
 
   const dicaTipo = TIPOS_DIVISAO.find((t) => t.tipo === tipo)?.dica;
+  const dataEscolhida = brParaIso(dataTexto);
+  const proximaData = dataEscolhida ? proximaOcorrencia(dataEscolhida, frequencia, Number(dataEscolhida.slice(8, 10))) : null;
 
   return (
     <Tela>
@@ -341,6 +347,26 @@ function Formulario({ grupo, membros, gasto, eu }: { grupo: Grupo; membros: Memb
           As contas guardam os centavos exatos. Na hora de cobrar, o valor é arredondado para cima.
         </Texto>
       </Secao>
+
+      {!gasto ? (
+        <Cartao>
+          <Interruptor
+            titulo="Repetir este gasto"
+            descricao="Bom para aluguel, luz e internet. Dá para editar o valor de cada lançamento depois."
+            valor={repetir}
+            aoMudar={setRepetir}
+          />
+          {repetir ? (
+            <>
+              <Fichas>
+                <Ficha rotulo="Todo mês" selecionada={frequencia === 'mensal'} aoPressionar={() => setFrequencia('mensal')} />
+                <Ficha rotulo="Toda semana" selecionada={frequencia === 'semanal'} aoPressionar={() => setFrequencia('semanal')} />
+              </Fichas>
+              {proximaData ? <Texto variante="suave">Próximo lançamento em {isoParaBr(proximaData)}.</Texto> : null}
+            </>
+          ) : null}
+        </Cartao>
+      ) : null}
 
       {erro ? <Aviso texto={erro} /> : null}
       <Botao titulo={gasto ? 'Salvar alterações' : 'Registrar gasto'} aoPressionar={salvar} carregando={salvando} />

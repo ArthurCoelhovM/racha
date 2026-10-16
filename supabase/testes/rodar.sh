@@ -8,7 +8,16 @@ banco="teste_organizador"
 
 psql -q -d postgres -c "drop database if exists $banco" -c "create database $banco"
 psql -q -v ON_ERROR_STOP=1 -d "$banco" -f "$pasta/testes/00_simular_supabase.sql"
+
+tem_cron=$(psql -At -d "$banco" -c "select count(*) from pg_available_extensions where name = 'pg_cron'")
 for arquivo in "$pasta"/migrations/*.sql; do
+  if [[ "$arquivo" == *agendamentos* && "$tem_cron" == "0" ]]; then
+    echo "pulando $(basename "$arquivo") (pg_cron não instalado aqui)"
+    continue
+  fi
   psql -q -v ON_ERROR_STOP=1 -d "$banco" -f "$arquivo"
 done
-psql -q -v ON_ERROR_STOP=1 -d "$banco" -f "$pasta/testes/01_testes.sql"
+
+for teste in "$pasta"/testes/[0-9][1-9]_*.sql; do
+  psql -q -v ON_ERROR_STOP=1 -d "$banco" -f "$teste"
+done

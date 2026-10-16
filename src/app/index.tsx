@@ -7,21 +7,28 @@ import { Aviso, Botao, BotaoFlutuante, Carregando, Linha, Tela, Texto, Vazio } f
 import { espaco, raio } from '@/constants/tema';
 import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { listarMeusGrupos } from '@/lib/api';
+import { contarAvisosNaoLidos, lancarMeusRecorrentes, listarMeusGrupos } from '@/lib/api';
 import { dec, Decimal, ehZero, reaisCobrar } from '@/lib/dinheiro';
 import { pegarCodigoPendente } from '@/lib/sessao';
 import type { ResumoGrupo } from '@/lib/tipos';
 
+async function carregarInicio() {
+  await lancarMeusRecorrentes();
+  const [grupos, naoLidos] = await Promise.all([listarMeusGrupos(), contarAvisosNaoLidos().catch(() => 0)]);
+  return { grupos, naoLidos };
+}
+
 export default function Grupos() {
   const tema = useTema();
-  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(listarMeusGrupos);
+  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(carregarInicio);
 
   useEffect(() => {
     const codigo = pegarCodigoPendente();
     if (codigo) router.push({ pathname: '/entrar-grupo', params: { codigo } });
   }, []);
 
-  const grupos = dados ?? [];
+  const grupos = dados?.grupos ?? [];
+  const naoLidos = dados?.naoLidos ?? 0;
   const totalDevo = grupos.reduce((s, g) => s.plus(dec(g.voce_deve)), new Decimal(0));
   const totalMeDevem = grupos.reduce((s, g) => s.plus(dec(g.te_devem)), new Decimal(0));
 
@@ -33,9 +40,23 @@ export default function Grupos() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={() => router.push('/conta')} hitSlop={10} style={{ paddingHorizontal: 8 }}>
-              <Texto variante="forte" cor={tema.primaria}>Conta</Texto>
-            </Pressable>
+            <Linha style={{ gap: 18, paddingHorizontal: 8 }}>
+              <Pressable onPress={() => router.push('/avisos')} hitSlop={10} accessibilityLabel={`Avisos, ${naoLidos} não lidos`}>
+                <Linha style={{ gap: 6 }}>
+                  <Texto variante="forte" cor={tema.primaria}>Avisos</Texto>
+                  {naoLidos > 0 ? (
+                    <View style={[estilos.contador, { backgroundColor: tema.negativo }]}>
+                      <Texto variante="suave" cor="#FFFFFF" style={{ fontWeight: '800', fontSize: 12 }}>
+                        {naoLidos > 99 ? '99+' : naoLidos}
+                      </Texto>
+                    </View>
+                  ) : null}
+                </Linha>
+              </Pressable>
+              <Pressable onPress={() => router.push('/conta')} hitSlop={10}>
+                <Texto variante="forte" cor={tema.primaria}>Conta</Texto>
+              </Pressable>
+            </Linha>
           ),
         }}
       />
@@ -129,4 +150,5 @@ const estilos = StyleSheet.create({
   cartao: { flexDirection: 'row', borderRadius: raio.g, borderWidth: 1, overflow: 'hidden' },
   faixa: { width: 6 },
   situacao: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: raio.total },
+  contador: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
 });

@@ -17,6 +17,9 @@ App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tri
 | Formas de dividir | Igual, valor exato, porcentagem, cotas e por item. Cada grupo escolhe quais permite. |
 | Pagamento | Um toque em "Marcar que paguei" ou "Marcar que recebi". Dá para desfazer. |
 | Histórico | Gastos, pagamentos, entradas, saídas e mudanças de configuração ficam registrados. |
+| Avisos | Gasto novo, pagamento marcado e gente nova no grupo geram um aviso para quem foi afetado (quem fez a ação não é avisado). |
+| Lembretes | Todo dia às 9h o banco lembra quem está devendo, respeitando a frequência escolhida em cada grupo. |
+| Recorrentes | Um gasto pode se repetir todo mês ou toda semana. O lançamento acontece sozinho e cada um pode ser editado depois. |
 
 ## Estrutura
 
@@ -39,7 +42,10 @@ public/                  manifesto e ícones da versão web
 ### 1. Supabase
 
 1. Crie um projeto grátis em supabase.com (região São Paulo).
-2. Abra **SQL Editor**, cole o conteúdo de `supabase/migrations/20261016000000_esquema_inicial.sql` e rode.
+2. Abra **SQL Editor** e rode, nesta ordem, o conteúdo de cada arquivo de `supabase/migrations/`:
+   - `20261016000000_esquema_inicial.sql`
+   - `20261016150000_avisos_lembretes_recorrentes.sql`
+   - `20261016150100_agendamentos.sql` (agenda os lembretes e os recorrentes com pg_cron; se der erro de extensão, ative **pg_cron** em **Database > Extensions** e rode de novo)
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email**. O envio de e-mail padrão do Supabase só entrega para pessoas da equipe do projeto e no máximo 2 por hora, então seus amigos não receberiam a confirmação. Para recuperar senha por e-mail, configure um SMTP próprio (Brevo e Resend têm plano grátis) em **Authentication > Emails > SMTP Settings**.
 4. Em **Authentication > URL Configuration**, coloque o endereço da versão web em **Site URL** e adicione `https://SEU-ENDERECO/**` em **Redirect URLs**.
 5. Copie a URL do projeto e a **publishable key** (botão **Connect** ou **Project Settings > API Keys**).
@@ -71,6 +77,8 @@ Na Netlify também funciona: build `npx expo export -p web`, pasta `dist`. O arq
 
 ## Testes
 
+O GitHub roda tudo isso sozinho a cada envio de código (`.github/workflows/testes.yml`).
+
 ```bash
 npm run testes          # contas de divisão, abatimento e arredondamento
 npm run tipos           # TypeScript
@@ -80,7 +88,5 @@ npm run testes:banco    # precisa de um Postgres local: PGHOST, PGPORT e PGUSER
 
 ## Ainda falta
 
-- Notificações push (Android com expo-notifications, iPhone com Web Push).
-- Lembrete de dívida automático (pg_cron + Edge Function). A frequência já é salva por grupo.
-- Gastos recorrentes (aluguel, luz, internet).
+- Notificações push no celular (Android com expo-notifications, iPhone com Web Push). Os avisos já existem dentro do app; o push só vai entregá-los.
 - Leitura de cupom fiscal por foto.
