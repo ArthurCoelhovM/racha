@@ -45,6 +45,22 @@ public/                  manifesto e ícones da versão web
 
 ## Colocar no ar
 
+### Como está publicado
+
+| Parte | Onde | Situação |
+| --- | --- | --- |
+| Banco, login e funções | Supabase, projeto `super-organizador-3021` (São Paulo, ref `nhsglhdifpozrpotxypr`) | No ar |
+| Site (iPhone e navegador) | Vercel, `super-organizador-3021.vercel.app` | Falta importar o repositório na Vercel |
+| APK do Android | Expo (EAS), workflow **Publicar** | Falta a conta na Expo e o segredo `EXPO_TOKEN` no GitHub |
+
+Detalhes da produção:
+
+- As migrações foram rodadas no **SQL Editor**, na ordem abaixo. Para uma migração nova, rode só ela no SQL Editor, ou use o workflow **Publicar** marcando "Atualizar banco" (precisa dos segredos `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD` no GitHub).
+- As funções foram publicadas pelo editor do painel (**Edge Functions > Deploy a new function > Via Editor**). No painel, cada função tem os arquivos compartilhados na mesma pasta (`cors.ts`, `nfce.ts`), importados com `./`.
+- Os segredos `VAPID_CHAVE_PUBLICA`, `VAPID_CHAVE_PRIVADA`, `VAPID_CONTATO` e `PUSH_WEBHOOK_SEGREDO` estão em **Edge Functions > Secrets**. A chave pública também vai no `eas.json` e nas variáveis da Vercel.
+- O webhook `enviar_push` (**Integrations > Database Webhooks**) chama a função `enviar-push` a cada aviso novo, com a chave anon legada no `Authorization` e o cabeçalho `x-segredo`.
+- O projeto assina os logins com chaves ECC (**Settings > JWT Keys**). A opção "Verify JWT with legacy secret" recusa esses logins, então ela fica desligada em `ler-nfce` e `excluir-conta`, que conferem o login no próprio código. Em `enviar-push` ela fica ligada.
+
 ### 1. Supabase
 
 1. Crie um projeto grátis em supabase.com (região São Paulo).
