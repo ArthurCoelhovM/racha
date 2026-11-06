@@ -1,0 +1,16 @@
+# Configuração usada pela CLI do Supabase (workflow Publicar)
+project_id = "super-organizador-3021"
+
+# O projeto assina os logins com chaves ECC (JWT Signing Keys), que a verificação
+# "legacy secret" do gateway não aceita. Por isso ler-nfce e excluir-conta conferem
+# o login no próprio código: ler-nfce pela função registrar_leitura_nfce do banco,
+# excluir-conta por auth.getUser.
+[functions.ler-nfce]
+verify_jwt = false
+
+[functions.excluir-conta]
+verify_jwt = false
+
+# chamada pelo webhook do banco com a chave anon legada e o cabeçalho x-segredo
+[functions.enviar-push]
+verify_jwt = true

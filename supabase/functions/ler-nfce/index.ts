@@ -14,11 +14,12 @@ const chaveAnon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const LIMITE_BYTES = 2 * 1024 * 1024;
 
 // cada pessoa pode ler até 10 cupons a cada 10 minutos (conferido no banco, com o login de quem chamou)
+// também é o que garante que só quem está logado usa a função
 async function conferirLimite(req: Request): Promise<{ erro: string; status: number } | null> {
-  const chave = chaveAnon || req.headers.get('apikey') || '';
-  if (!urlSupabase || !chave) return null;
   const autorizacao = req.headers.get('Authorization');
   if (!autorizacao) return { erro: 'Faça login para ler o cupom.', status: 401 };
+  const chave = chaveAnon || req.headers.get('apikey') || '';
+  if (!urlSupabase || !chave) return { erro: 'A função está sem a configuração do Supabase.', status: 500 };
   const r = await fetch(`${urlSupabase}/rest/v1/rpc/registrar_leitura_nfce`, {
     method: 'POST',
     headers: { apikey: chave, Authorization: autorizacao, 'Content-Type': 'application/json' },

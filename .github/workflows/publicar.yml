@@ -1,0 +1,80 @@
+name: Publicar
+
+# Rodar pelo botão "Run workflow" na aba Actions do GitHub.
+# - Banco e funções: precisa dos segredos SUPABASE_ACCESS_TOKEN e SUPABASE_DB_PASSWORD.
+#   Os segredos das funções (VAPID e PUSH_WEBHOOK_SEGREDO) ficam no painel do Supabase.
+# - APK: precisa do segredo EXPO_TOKEN. Na primeira vez, marque "Primeiro APK" para a Expo
+#   criar e guardar a chave de assinatura do Android (o plano grátis tem 15 builds por mês).
+
+on:
+  workflow_dispatch:
+    inputs:
+      banco:
+        description: Atualizar banco e funções no Supabase
+        type: boolean
+        default: false
+      apk:
+        description: Gerar o APK do Android na Expo
+        type: boolean
+        default: true
+      primeiro_apk:
+        description: Primeiro APK (cria a chave de assinatura na Expo)
+        type: boolean
+        default: false
+
+env:
+  PROJETO_SUPABASE: nhsglhdifpozrpotxypr
+
+jobs:
+  supabase:
+    name: Banco e funções (Supabase)
+    if: inputs.banco
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Ligar ao projeto
+        run: supabase link --project-ref "$PROJETO_SUPABASE" --password "$SUPABASE_DB_PASSWORD"
+      - name: Banco (migrações)
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD" --yes
+      - name: Funções
+        run: supabase functions deploy --project-ref "$PROJETO_SUPABASE" --use-api
+
+  apk:
+    name: APK do Android (Expo)
+    if: inputs.apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Primeiro APK (responde "sim" para criar a chave de assinatura)
+        if: inputs.primeiro_apk
+        run: |
+          sudo apt-get install -y expect > /dev/null
+          expect -c '
+            set timeout 900
+            spawn eas build --platform android --profile apk --no-wait
+            expect {
+              -re {Generate a new Android Keystore} { send "y\r"; exp_continue }
+              -re {\(Y/n\)} { send "y\r"; exp_continue }
+              eof
+            }
+            catch wait resultado
+            exit [lindex $resultado 3]
+          '
+      - name: APK
+        if: ${{ !inputs.primeiro_apk }}
+        run: eas build --platform android --profile apk --non-interactive --no-wait
