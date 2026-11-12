@@ -26,7 +26,11 @@ export function RepetirGasto({
       {repetir ? (
         <>
           <Fichas>
-            <Ficha rotulo="Todo mês" selecionada={frequencia === 'mensal'} aoPressionar={() => aoMudarFrequencia('mensal')} />
+            <Ficha
+              rotulo="Todo mês"
+              selecionada={frequencia === 'mensal'}
+              aoPressionar={() => aoMudarFrequencia('mensal')}
+            />
             <Ficha
               rotulo="Toda semana"
               selecionada={frequencia === 'semanal'}

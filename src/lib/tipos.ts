@@ -110,7 +110,8 @@ export type Aviso = {
     | 'membro'
     | 'grupo'
     | 'lembrete'
-    | 'recorrente_parado';
+    | 'recorrente_parado'
+    | 'cobranca';
   titulo: string;
   corpo: string;
   dados: Record<string, unknown> | null;

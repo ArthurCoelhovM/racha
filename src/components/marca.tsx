@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { fontes } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 
 const coresAno = ['#E8680A', '#5B4CF0', '#D92657', '#12924B'];
@@ -22,5 +23,5 @@ export function Marca({ tamanho = 34 }: { tamanho?: number }) {
 
 const estilos = StyleSheet.create({
   linha: { flexDirection: 'row', flexWrap: 'wrap' },
-  nome: { fontWeight: '900', letterSpacing: -1, lineHeight: undefined },
+  nome: { fontFamily: fontes.titulo, letterSpacing: -1, lineHeight: undefined },
 });

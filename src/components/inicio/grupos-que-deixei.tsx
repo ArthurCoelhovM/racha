@@ -20,7 +20,7 @@ export function GruposQueDeixei({ eu }: { eu: string }) {
   const [mensagem, setMensagem] = useState<{ texto: string; tipo: 'ok' | 'erro' } | null>(null);
   useAtualizarAoFocar(consulta.refetch);
   const lista = consulta.data ?? [];
-  if (lista.length === 0) return null;
+  if (lista.length === 0) return mensagem ? <Aviso texto={mensagem.texto} tipo={mensagem.tipo} /> : null;
 
   const grupos = new Map<string, PendenciaFora[]>();
   for (const p of lista) grupos.set(p.grupo_id, [...(grupos.get(p.grupo_id) ?? []), p]);
@@ -61,7 +61,9 @@ export function GruposQueDeixei({ eu }: { eu: string }) {
                 <View style={{ padding: espaco.g, gap: espaco.m }}>
                   <Linha>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Texto variante="forte">{devo ? `Você deve a ${p.outra_pessoa}` : `${p.outra_pessoa} te deve`}</Texto>
+                      <Texto variante="forte">
+                        {devo ? `Você deve a ${p.outra_pessoa}` : `${p.outra_pessoa} te deve`}
+                      </Texto>
                       {p.descricao ? (
                         <Texto variante="suave" numberOfLines={1}>
                           {p.descricao}

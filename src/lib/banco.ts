@@ -752,6 +752,7 @@ export type Database = {
         Returns: undefined;
       };
       calcular_dividas: { Args: { p_gasto: string }; Returns: undefined };
+      cobrar: { Args: { p_devedor: string; p_grupo: string }; Returns: string };
       codigo_do_grupo: { Args: { p_grupo: string }; Returns: string };
       compartilha_grupo: { Args: { outro: string }; Returns: boolean };
       criar_grupo: {

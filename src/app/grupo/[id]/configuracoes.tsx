@@ -43,7 +43,10 @@ export default function Configuracoes() {
     <Tela>
       {erro ? <Aviso texto={erro} /> : null}
       {grupo && !podeMudar ? (
-        <Aviso tipo="info" texto={`Neste grupo, mudar as configurações é com ${quemPode(grupo, 'mudar_configuracoes')}.`} />
+        <Aviso
+          tipo="info"
+          texto={`Neste grupo, mudar as configurações é com ${quemPode(grupo, 'mudar_configuracoes')}.`}
+        />
       ) : null}
       {grupo && podeMudar ? (
         <FormularioGrupo

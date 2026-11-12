@@ -41,6 +41,7 @@ export default function Avisos() {
     membro: tema.textoSuave,
     lembrete: tema.aviso,
     recorrente_parado: tema.negativo,
+    cobranca: tema.negativo,
   };
 
   if (carregando) return <Carregando />;

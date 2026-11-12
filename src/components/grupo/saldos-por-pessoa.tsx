@@ -7,6 +7,9 @@ import { Decimal, ehZero, reais } from '@/lib/dinheiro';
 import { saldoDaPessoa, type Pendencia } from '@/lib/saldos';
 import type { Membro } from '@/lib/tipos';
 
+const EXPLICACAO =
+  'O saldo de cada pessoa é quanto ela tem a receber menos quanto deve no grupo. Positivo: recebe. Negativo: paga.';
+
 export function SaldosPorPessoa({
   membros,
   pendencias,
@@ -42,6 +45,7 @@ export function SaldosPorPessoa({
             Recebe
           </Texto>
         </Linha>
+        <Texto variante="suave">{EXPLICACAO}</Texto>
         {saldos.map((s) => {
           const fracao = maior.isZero() ? 0 : Number(s.saldo.abs().div(maior).toFixed(4));
           const positivo = s.saldo.gt(0);
@@ -86,27 +90,30 @@ export function SaldosPorPessoa({
   }
 
   return (
-    <View style={estilos.grade}>
-      {saldos.map((s) => {
-        const positivo = s.saldo.gt(0);
-        const quite = ehZero(s.saldo);
-        return (
-          <Cartao key={s.id} style={estilos.cartaoPessoa}>
-            <Linha>
-              <Avatar id={s.id} nome={s.nome} />
-              <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>
-                {s.nome}
+    <View style={{ gap: espaco.m }}>
+      <Texto variante="suave">{EXPLICACAO}</Texto>
+      <View style={estilos.grade}>
+        {saldos.map((s) => {
+          const positivo = s.saldo.gt(0);
+          const quite = ehZero(s.saldo);
+          return (
+            <Cartao key={s.id} style={estilos.cartaoPessoa}>
+              <Linha>
+                <Avatar id={s.id} nome={s.nome} />
+                <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>
+                  {s.nome}
+                </Texto>
+              </Linha>
+              <Texto variante="rotulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
+                {quite ? 'Quite' : positivo ? 'A receber' : 'A pagar'}
               </Texto>
-            </Linha>
-            <Texto variante="rotulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
-              {quite ? 'Quite' : positivo ? 'A receber' : 'A pagar'}
-            </Texto>
-            <Texto variante="subtitulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
-              {reais(s.saldo.abs())}
-            </Texto>
-          </Cartao>
-        );
-      })}
+              <Texto variante="subtitulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
+                {reais(s.saldo.abs())}
+              </Texto>
+            </Cartao>
+          );
+        })}
+      </View>
     </View>
   );
 }

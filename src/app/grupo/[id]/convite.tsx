@@ -20,7 +20,8 @@ export default function Convite() {
   const { usuarioId } = useSessao();
   const cliente = useQueryClient();
   const grupo = consulta.data;
-  const podeConvidar = !!grupo && !!membros.data && pode(grupo, meuPapel(membros.data, usuarioId ?? ''), 'convidar_membros');
+  const podeConvidar =
+    !!grupo && !!membros.data && pode(grupo, meuPapel(membros.data, usuarioId ?? ''), 'convidar_membros');
   const codigoConsulta = useCodigo(id, podeConvidar);
   const codigo = codigoConsulta.data;
   const erro = textoDoErro(consulta.error ?? membros.error ?? codigoConsulta.error);

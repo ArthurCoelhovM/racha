@@ -182,8 +182,12 @@ export function useMarcarPago(grupoId: string) {
     onMutate: async (p) => {
       await cliente.cancelQueries({ queryKey: chaves.pendencias(grupoId) });
       const antes = cliente.getQueryData<Pendencia[]>(chaves.pendencias(grupoId));
+      // "acertar tudo" tira todas as dívidas do par; as outras, só a própria linha
+      const doPar = p.chave.startsWith('tudo|');
       cliente.setQueryData<Pendencia[]>(chaves.pendencias(grupoId), (lista) =>
-        (lista ?? []).filter((x) => x.chave !== p.chave),
+        (lista ?? []).filter((x) =>
+          doPar ? !(x.devedor === p.devedor && x.credor === p.credor) : x.chave !== p.chave,
+        ),
       );
       return { antes };
     },

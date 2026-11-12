@@ -8,7 +8,15 @@ import type { Parte } from '@/lib/divisao';
 
 import { LinhaPessoa, Secao } from './partes';
 
-export function ComoFica({ partes, erro, nome }: { partes: Parte[]; erro: string | null; nome: (u: string) => string }) {
+export function ComoFica({
+  partes,
+  erro,
+  nome,
+}: {
+  partes: Parte[];
+  erro: string | null;
+  nome: (u: string) => string;
+}) {
   const tema = useTema();
   return (
     <Secao titulo="Como fica">

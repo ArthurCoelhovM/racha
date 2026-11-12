@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Avatar, Linha, Texto } from '@/components/ui';
-import { espaco, raio } from '@/constants/tema';
-import { useTema } from '@/hooks/use-tema';
+import { espaco, raio, tomClaro } from '@/constants/tema';
+import { useEscuro, useTema } from '@/hooks/use-tema';
 import { ehZero, reais, type Decimal } from '@/lib/dinheiro';
 import type { Grupo, Membro } from '@/lib/tipos';
 
@@ -18,8 +18,11 @@ export function ResumoDoGrupo({
   teDevem: Decimal;
 }) {
   const tema = useTema();
+  const escuro = useEscuro();
   return (
     <View style={[estilos.resumo, { backgroundColor: tema.superficie, borderColor: tema.borda }]}>
+      {/* um tom claro da cor do grupo no fundo, para saber em qual grupo você está */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: tomClaro(grupo.cor, escuro) }]} />
       <View style={[estilos.faixa, { backgroundColor: grupo.cor }]} />
       <View style={{ flex: 1, padding: espaco.g, gap: espaco.m }}>
         {ehZero(voceDeve) && ehZero(teDevem) ? (

@@ -28,7 +28,8 @@ export const campo = (p: Page, nome: string) => p.locator(`[aria-label="${nome}"
 export const texto = (p: Page, t: string | RegExp, exato = false) =>
   p.getByText(t, { exact: exato }).locator('visible=true').first();
 export const botao = (p: Page, nome: string) => p.getByRole('button', { name: nome }).locator('visible=true').first();
-export const aba = (p: Page, nome: string | RegExp) => p.getByRole('tab', { name: nome }).locator('visible=true').first();
+export const aba = (p: Page, nome: string | RegExp) =>
+  p.getByRole('tab', { name: nome }).locator('visible=true').first();
 
 export async function criarConta(p: Page, nome: string, email: string) {
   await p.goto('/');

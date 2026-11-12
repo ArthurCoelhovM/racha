@@ -35,7 +35,7 @@ test('papéis, permissões e o que fica para quem foi removido', async ({ browse
   await expect(texto(paginaAna, 'Bia deve a você')).toBeVisible();
   // com abatimento: 50,00 + 0,02 (a Ana ficou com 0,03 da pizza de 0,05)
   await expect(texto(paginaAna, 'R$ 50,02')).toBeVisible();
-  await texto(paginaAna, 'Ajustes', true).click();
+  await paginaAna.getByLabel('Ajustes').locator('visible=true').first().click();
   await expect(texto(paginaAna, 'Pessoas do grupo')).toBeVisible();
   const linhaRegistrar = paginaAna.getByText('Registrar gastos', { exact: true }).locator('..');
   await linhaRegistrar.getByText('Só o dono', { exact: true }).click();
@@ -46,7 +46,7 @@ test('papéis, permissões e o que fica para quem foi removido', async ({ browse
   await texto(paginaBia, 'Casa', true).click();
   await expect(texto(paginaBia, 'Você deve a Ana')).toBeVisible();
   await expect(texto(paginaBia, '+ Gasto')).toBeHidden();
-  await texto(paginaBia, 'Ajustes', true).click();
+  await paginaBia.getByLabel('Ajustes').locator('visible=true').first().click();
   await expect(texto(paginaBia, 'mudar as configurações é com admins e o dono')).toBeVisible();
 
   // Ana remove a Bia

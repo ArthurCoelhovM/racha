@@ -1,6 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable } from 'react-native';
 
 import { Abas } from '@/components/grupo/abas';
 import { Historico } from '@/components/grupo/historico';
@@ -8,9 +7,8 @@ import { ListaDeDividas } from '@/components/grupo/lista-de-dividas';
 import { ListaDeGastos, ListaDeRecorrentes } from '@/components/grupo/lista-de-gastos';
 import { ResumoDoGrupo } from '@/components/grupo/resumo-do-grupo';
 import { SaldosPorPessoa } from '@/components/grupo/saldos-por-pessoa';
-import { Aviso, Botao, BotaoFlutuante, Carregando, CoresDoGrupo, Linha, Tela, Texto, Vazio } from '@/components/ui';
-import { useTema } from '@/hooks/use-tema';
-import { ehForaDoGrupo, listarGastos, mensagemDeErro, pararRecorrente } from '@/lib/api';
+import { Aviso, Botao, BotaoFlutuante, BotaoIcone, CoresDoGrupo, Esqueleto, Linha, Tela, Vazio } from '@/components/ui';
+import { cobrar, ehForaDoGrupo, listarGastos, mensagemDeErro, pararRecorrente } from '@/lib/api';
 import {
   textoDoErro,
   useAtualizarAoFocar,
@@ -30,6 +28,7 @@ import { exportarCsv, gastosEmCsv } from '@/lib/csv';
 import { reais } from '@/lib/dinheiro';
 import { meuPapel, pode } from '@/lib/permissoes';
 import { resumoDoUsuario, type Pendencia } from '@/lib/saldos';
+import { vibrarSucesso } from '@/lib/toque';
 import { useSessao } from '@/lib/sessao';
 import type { Recorrente } from '@/lib/tipos';
 
@@ -38,7 +37,6 @@ type Visao = 'lista' | 'pessoas' | 'grafico';
 type Mensagem = { texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string };
 
 export default function TelaGrupo() {
-  const tema = useTema();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { usuarioId } = useSessao();
   const eu = usuarioId ?? '';
@@ -66,13 +64,20 @@ export default function TelaGrupo() {
   const nomes = useMemo(() => {
     const mapa = new Map<string, string>();
     // quem saiu continua aparecendo nas dívidas, marcado como "(saiu)"
-    for (const m of membros.data ?? []) mapa.set(m.usuario_id, `${m.perfil.nome || 'Alguém'}${m.ativo ? '' : ' (saiu)'}`);
+    for (const m of membros.data ?? [])
+      mapa.set(m.usuario_id, `${m.perfil.nome || 'Alguém'}${m.ativo ? '' : ' (saiu)'}`);
     return mapa;
   }, [membros.data]);
 
   const erroDoGrupo = textoDoErro(grupo.error ?? membros.error);
   if (grupo.isPending || membros.isPending) {
-    if (!erroDoGrupo) return <Carregando />;
+    if (!erroDoGrupo) {
+      return (
+        <Tela>
+          <Esqueleto />
+        </Tela>
+      );
+    }
   }
   if (!grupo.data || !membros.data) {
     return (
@@ -80,7 +85,10 @@ export default function TelaGrupo() {
         <Stack.Screen options={{ title: 'Grupo' }} />
         {ehForaDoGrupo(erroDoGrupo) ? (
           <>
-            <Vazio titulo="Você não está mais neste grupo" texto="Ele saiu da sua lista. Peça um convite novo para voltar." />
+            <Vazio
+              titulo="Você não está mais neste grupo"
+              texto="Ele saiu da sua lista. Peça um convite novo para voltar."
+            />
             <Botao titulo="Ver meus grupos" aoPressionar={() => router.dismissTo('/')} />
           </>
         ) : erroDoGrupo ? (
@@ -102,6 +110,7 @@ export default function TelaGrupo() {
 
   function pagar(p: Pendencia) {
     setMensagem(null);
+    vibrarSucesso();
     marcarPago.mutate(p, {
       onSuccess: (pagamentoId) =>
         setMensagem({ texto: `Pagamento de ${reais(p.cobrar)} marcado.`, tipo: 'ok', pagamentoId }),
@@ -114,6 +123,16 @@ export default function TelaGrupo() {
       onSuccess: () => setMensagem({ texto: 'Pagamento desfeito.', tipo: 'ok' }),
       onError: (e) => setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' }),
     });
+  }
+
+  async function cobrarPessoa(devedor: string) {
+    setMensagem(null);
+    try {
+      const valor = await cobrar(g.id, devedor);
+      setMensagem({ texto: `${nome(devedor)} recebeu um aviso para acertar ${valor}.`, tipo: 'ok' });
+    } catch (e) {
+      setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' });
+    }
   }
 
   async function exportar() {
@@ -155,23 +174,19 @@ export default function TelaGrupo() {
           options={{
             title: g.nome,
             headerRight: () => (
-              <Linha style={{ gap: 16, paddingHorizontal: 8 }}>
+              <Linha style={{ gap: 6, paddingHorizontal: 4 }}>
                 {podeConvidar ? (
-                  <Pressable
-                    hitSlop={10}
-                    onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: g.id } })}>
-                    <Texto variante="forte" cor={tema.primaria}>
-                      Convidar
-                    </Texto>
-                  </Pressable>
+                  <BotaoIcone
+                    icone="person-add-outline"
+                    rotulo="Convidar"
+                    aoPressionar={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: g.id } })}
+                  />
                 ) : null}
-                <Pressable
-                  hitSlop={10}
-                  onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: g.id } })}>
-                  <Texto variante="forte" cor={tema.primaria}>
-                    Ajustes
-                  </Texto>
-                </Pressable>
+                <BotaoIcone
+                  icone="settings-outline"
+                  rotulo="Ajustes"
+                  aoPressionar={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: g.id } })}
+                />
               </Linha>
             ),
           }}
@@ -212,12 +227,14 @@ export default function TelaGrupo() {
               aoMudar={setVisao}
             />
             {pendencias.isPending ? (
-              <Carregando />
+              <Esqueleto comResumo={false} />
             ) : visao === 'lista' ? (
               <ListaDeDividas
                 pendencias={listaPendencias}
                 eu={eu}
                 nome={nome}
+                abatimento={g.abatimento}
+                aoCobrar={cobrarPessoa}
                 marcando={marcarPago.isPending ? (marcarPago.variables?.chave ?? null) : null}
                 aoPagar={pagar}
               />
@@ -238,7 +255,7 @@ export default function TelaGrupo() {
           <>
             <ListaDeRecorrentes recorrentes={recorrentes.data ?? []} aoParar={parar} />
             {gastos.isPending ? (
-              <Carregando />
+              <Esqueleto comResumo={false} />
             ) : (
               <ListaDeGastos
                 gastos={listaGastos}
@@ -254,7 +271,12 @@ export default function TelaGrupo() {
               />
             )}
             {listaGastos.length > 0 ? (
-              <Botao titulo="Exportar gastos em CSV" variante="secundario" carregando={exportando} aoPressionar={exportar} />
+              <Botao
+                titulo="Exportar gastos em CSV"
+                variante="secundario"
+                carregando={exportando}
+                aoPressionar={exportar}
+              />
             ) : null}
           </>
         ) : null}

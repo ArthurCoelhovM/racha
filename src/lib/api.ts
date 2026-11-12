@@ -52,7 +52,10 @@ function numerico(valor: Decimal): number {
 }
 
 // o banco guarda tipo, papel e frequência como texto com check; aqui eles voltam a ser os tipos do app
-type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas' | 'permissoes'> & { divisoes_permitidas: string[]; permissoes: Json };
+type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas' | 'permissoes'> & {
+  divisoes_permitidas: string[];
+  permissoes: Json;
+};
 function paraGrupo(g: LinhaGrupo): Grupo {
   return {
     ...g,
@@ -218,6 +221,10 @@ export async function passarDono(grupoId: string, usuarioId: string): Promise<vo
 
 export async function removerMembro(grupoId: string, usuarioId: string): Promise<void> {
   semErro(await supabase.rpc('remover_membro', { p_grupo: grupoId, p_usuario: usuarioId }));
+}
+
+export async function cobrar(grupoId: string, devedor: string): Promise<string> {
+  return checar(await supabase.rpc('cobrar', { p_grupo: grupoId, p_devedor: devedor }));
 }
 
 export async function codigoDoGrupo(grupoId: string): Promise<string> {

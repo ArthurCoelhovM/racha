@@ -1,3 +1,8 @@
+import {
+  BricolageGrotesque_700Bold,
+  BricolageGrotesque_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/bricolage-grotesque';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   DarkTheme,
@@ -15,6 +20,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Marca } from '@/components/marca';
+import { fontes } from '@/constants/tema';
 import { Botao, Texto } from '@/components/ui';
 import { useEscuro, useTema } from '@/hooks/use-tema';
 import { useToqueNotificacao } from '@/hooks/use-toque-notificacao';
@@ -39,13 +45,20 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       <Texto variante="subtitulo">Algo deu errado nesta tela</Texto>
       <Texto variante="suave">O erro foi registrado para ser corrigido. Tente de novo ou volte para o início.</Texto>
       <Botao titulo="Tentar de novo" aoPressionar={retry} />
-      <Botao titulo="Ir para o início" variante="secundario" aoPressionar={() => retry().then(() => router.replace('/'))} />
+      <Botao
+        titulo="Ir para o início"
+        variante="secundario"
+        aoPressionar={() => retry().then(() => router.replace('/'))}
+      />
     </View>
   );
 }
 
 function Navegacao() {
-  const { sessao, carregando } = useSessao();
+  const { sessao, carregando: carregandoSessao } = useSessao();
+  const [fontesProntas, erroFontes] = useFonts({ BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold });
+  // sem a fonte (erro de rede no navegador), o app segue com a fonte do sistema
+  const carregando = carregandoSessao || (!fontesProntas && !erroFontes);
   const tema = useTema();
   const caminho = usePathname();
 
@@ -73,7 +86,7 @@ function Navegacao() {
         headerStyle: { backgroundColor: tema.fundo },
         headerTintColor: tema.texto,
         headerShadowVisible: false,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontFamily: fontes.tituloMedio, fontSize: 19 },
         headerBackTitle: 'Voltar',
         contentStyle: { backgroundColor: tema.fundo },
       }}>

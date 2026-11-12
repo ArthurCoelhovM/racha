@@ -44,8 +44,7 @@ export function MembrosEPapeis({ grupo, membros, eu, papel, aoMudar }: Props) {
         {ativos.map((m, i) => {
           const nome = m.usuario_id === eu ? 'Você' : m.perfil.nome || 'Alguém';
           const ehEu = m.usuario_id === eu;
-          const removivel =
-            !ehEu && m.papel !== 'dono' && podeRemover && (m.papel === 'membro' || souDono);
+          const removivel = !ehEu && m.papel !== 'dono' && podeRemover && (m.papel === 'membro' || souDono);
           return (
             <View key={m.usuario_id}>
               {i > 0 ? <Separador /> : null}
@@ -82,7 +81,11 @@ export function MembrosEPapeis({ grupo, membros, eu, papel, aoMudar }: Props) {
                         confirmar={`Toque de novo: ${nome} vira dono e você vira admin`}
                         carregando={ocupado === `dono-${m.usuario_id}`}
                         aoPressionar={() =>
-                          fazer(`dono-${m.usuario_id}`, () => passarDono(grupo.id, m.usuario_id), `${nome} agora é o dono.`)
+                          fazer(
+                            `dono-${m.usuario_id}`,
+                            () => passarDono(grupo.id, m.usuario_id),
+                            `${nome} agora é o dono.`,
+                          )
                         }
                       />
                     ) : null}

@@ -1,6 +1,9 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { createContext, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  type DimensionValue,
   Platform,
   Pressable,
   RefreshControl,
@@ -17,7 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { coresGrupo, corDaPessoa, espaco, larguraMaxima, raio } from '@/constants/tema';
+import { coresGrupo, corDaPessoa, espaco, fontes, larguraMaxima, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { mascaraDinheiro } from '@/lib/dinheiro';
 
@@ -54,8 +57,8 @@ export function Texto({
 }
 
 const estilosTexto = StyleSheet.create({
-  grande: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
-  titulo: { fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
+  grande: { fontSize: 32, fontFamily: fontes.titulo, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  titulo: { fontSize: 25, fontFamily: fontes.titulo, letterSpacing: -0.3 },
   subtitulo: { fontSize: 17, fontWeight: '700' },
   corpo: { fontSize: 15, lineHeight: 21 },
   forte: { fontSize: 15, lineHeight: 21, fontWeight: '600' },
@@ -505,4 +508,100 @@ const estilos = StyleSheet.create({
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espaco.xxg },
   vazio: { alignItems: 'center', gap: espaco.m, paddingVertical: espaco.xxg, paddingHorizontal: espaco.g },
   linha: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
+  botaoIcone: { padding: 6 },
+  contador: {
+    position: 'absolute',
+    top: 0,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
+
+// ---------- Ícone ----------
+
+export type NomeIcone = ComponentProps<typeof Ionicons>['name'];
+
+export function Icone({ nome, tamanho = 22, cor }: { nome: NomeIcone; tamanho?: number; cor?: string }) {
+  const tema = useTema();
+  return <Ionicons name={nome} size={tamanho} color={cor ?? tema.texto} />;
+}
+
+// botão só com ícone, para o cabeçalho; o nome vai para o leitor de tela
+export function BotaoIcone({
+  icone,
+  rotulo,
+  aoPressionar,
+  contador = 0,
+}: {
+  icone: NomeIcone;
+  rotulo: string;
+  aoPressionar: () => void;
+  contador?: number;
+}) {
+  const tema = useTema();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={contador > 0 ? `${rotulo}, ${contador} não lidos` : rotulo}
+      hitSlop={10}
+      onPress={aoPressionar}
+      style={({ pressed }) => [estilos.botaoIcone, { opacity: pressed ? 0.6 : 1 }]}>
+      <Ionicons name={icone} size={24} color={tema.primaria} />
+      {contador > 0 ? (
+        <View style={[estilos.contador, { backgroundColor: tema.negativo, borderColor: tema.fundo }]}>
+          <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>{contador > 99 ? '99+' : contador}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// ---------- Esqueleto (carregando) ----------
+
+// blocos cinza no formato da tela, em vez de um spinner no meio do nada
+export function Esqueleto({ linhas = 3, comResumo = true }: { linhas?: number; comResumo?: boolean }) {
+  const tema = useTema();
+  const [brilho] = useState(() => new Animated.Value(0.5));
+  useEffect(() => {
+    const animacao = Animated.loop(
+      Animated.sequence([
+        Animated.timing(brilho, { toValue: 1, duration: 700, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(brilho, { toValue: 0.5, duration: 700, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
+    );
+    animacao.start();
+    return () => animacao.stop();
+  }, [brilho]);
+  const bloco = (altura: number, largura: DimensionValue = '100%') => (
+    <Animated.View
+      style={{
+        height: altura,
+        width: largura,
+        borderRadius: raio.m,
+        backgroundColor: tema.superficie2,
+        opacity: brilho,
+      }}
+    />
+  );
+  return (
+    <View style={[estilos.coluna, { gap: espaco.g }]} accessibilityLabel="Carregando" accessibilityRole="progressbar">
+      {comResumo ? bloco(120) : null}
+      {bloco(40)}
+      {Array.from({ length: linhas }, (_, i) => (
+        <View key={i} style={{ flexDirection: 'row', gap: espaco.m, alignItems: 'center' }}>
+          {bloco(40, 40)}
+          <View style={{ flex: 1, gap: 6 }}>
+            {bloco(14, '70%')}
+            {bloco(12, '40%')}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}

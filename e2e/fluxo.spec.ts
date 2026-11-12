@@ -12,7 +12,7 @@ test('grupo, gastos, pagamento, histórico e saída de um membro', async ({ page
   await expect(texto(page, 'Nenhum grupo ainda')).toBeVisible();
 
   // cria o grupo e pega o código
-  await texto(page, '+ Grupo').click();
+  await botao(page, 'Criar grupo').click();
   await campo(page, 'Nome do grupo').fill('Viagem Floripa');
   await botao(page, 'Criar grupo').click();
   await expect(texto(page, 'Código do grupo')).toBeVisible();
@@ -36,7 +36,7 @@ test('grupo, gastos, pagamento, histórico e saída de um membro', async ({ page
   await expect(texto(page, 'R$ 50,00')).toBeVisible();
 
   // marcar pago e desfazer
-  await texto(page, 'Marcar que recebi').click();
+  await botao(page, 'Marcar que recebi').click();
   await expect(texto(page, 'Pagamento de R$ 50,00 marcado.')).toBeVisible();
   await expect(texto(page, 'Ninguém deve nada')).toBeVisible();
   await texto(page, 'Desfazer').click();
@@ -50,13 +50,15 @@ test('grupo, gastos, pagamento, histórico e saída de um membro', async ({ page
   await aba(page, 'Dívidas').click();
   await texto(page, '+ Gasto').click();
   await campo(page, 'Descrição').fill('Mercado');
+  await expect(texto(page, 'Você pagou · igual entre todos (2)')).toBeVisible();
+  await texto(page, 'Mudar', true).click();
   await texto(page, 'Por item', true).click();
   await page.locator('input[placeholder="Item 1"] >> visible=true').first().fill('Cerveja');
   await page.locator('input[placeholder="0,00"] >> visible=true').last().fill('3000');
   await texto(page, '+ Adicionar item').click();
   await page.locator('input[placeholder="Item 2"] >> visible=true').first().fill('Pão');
   await page.locator('input[placeholder="0,00"] >> visible=true').last().fill('1250');
-  await expect(texto(page, 'R$ 42,50')).toBeVisible();
+  await expect(texto(page, '42,50', true)).toBeVisible();
   await botao(page, 'Registrar gasto').click();
   await expect(aba(page, 'Gastos (2)')).toBeVisible();
 
@@ -64,7 +66,7 @@ test('grupo, gastos, pagamento, histórico e saída de um membro', async ({ page
   await page.goto('/');
   await expect(texto(page, 'Viagem Floripa')).toBeVisible();
   await expect(page.getByLabel('Avisos, 1 não lidos').locator('visible=true').first()).toBeVisible();
-  await texto(page, 'Avisos', true).click();
+  await page.getByLabel('Avisos, 1 não lidos').locator('visible=true').first().click();
   await expect(texto(page, 'Bia entrou no grupo.')).toBeVisible();
 
   // Bia sai; a edição mantém a parte dela

@@ -207,4 +207,15 @@ do $$ begin
           and grupo_id = (select id from public.grupos where nome = 'Futsal')) = 'dono', 'o admin vira dono';
 end $$;
 
+-- Cobrar: Rui cobra a Sol (que deve o Presente); a segunda cobrança seguida é recusada
+set role authenticated;
+select set_config('request.jwt.claim.sub', :'rui', false) \g /dev/null
+select public.cobrar(:'rep', :'sol') as cobrado \gset
+select testes.deve_falhar(format('select public.cobrar(%L, %L)', :'rep', :'sol'), '12 horas') \g /dev/null
+select testes.deve_falhar(format('select public.cobrar(%L, %L)', :'rep', :'rui'), 'não te deve') \g /dev/null
+select set_config('request.jwt.claim.sub', :'sol', false) \g /dev/null
+do $$ begin
+  assert (select corpo from public.avisos where tipo = 'cobranca') like 'Rui pediu para você acertar R$ %', 'Sol recebe a cobrança';
+end $$;
+
 \echo 'Todos os testes de papéis, centavos e de quem saiu passaram.'

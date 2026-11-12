@@ -126,7 +126,13 @@ export function SeletorDeDivisao({
       ) : null}
 
       {tipo === 'itens' ? (
-        <FormularioDeItens itens={itens} membros={membros} ativos={ativos} nome={nome} aoMudar={(i) => aoMudar({ itens: i })} />
+        <FormularioDeItens
+          itens={itens}
+          membros={membros}
+          ativos={ativos}
+          nome={nome}
+          aoMudar={(i) => aoMudar({ itens: i })}
+        />
       ) : null}
     </Secao>
   );

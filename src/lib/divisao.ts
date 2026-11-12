@@ -149,8 +149,10 @@ export function calcularDivisao(
     const quem = item.participantes.filter((u) => membros.includes(u));
     if (quem.length === 0) return resultado([], `Escolha quem participa de ${nome}`);
     const cada = v.div(quem.length);
+    // a ordem gira a cada item, para o centavo que sobra não cair sempre na mesma pessoa
+    const girados = quem.map((_, k) => quem[(k + i) % quem.length]);
     const doItem = fechar(
-      quem.map((u) => ({ usuario_id: u, parametro: null, valor: cada })),
+      girados.map((u) => ({ usuario_id: u, parametro: null, valor: cada })),
       v,
     );
     for (const parte of doItem) {

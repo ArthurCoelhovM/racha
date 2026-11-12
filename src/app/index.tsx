@@ -4,13 +4,14 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { DicaInstalar } from '@/components/dica-instalar';
 import { GruposQueDeixei } from '@/components/inicio/grupos-que-deixei';
-import { Aviso, Botao, BotaoFlutuante, Carregando, Linha, Tela, Texto, Vazio } from '@/components/ui';
+import { Aviso, Botao, BotaoFlutuante, BotaoIcone, Esqueleto, Linha, Tela, Texto, Vazio } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { textoDoErro, useAtualizarAoFocar, useInicio, usePuxar } from '@/lib/consultas';
 import { dec, Decimal, ehZero, reaisCobrar } from '@/lib/dinheiro';
 import { pegarCodigoPendente, useSessao } from '@/lib/sessao';
 import type { ResumoGrupo } from '@/lib/tipos';
+import { ultimoGrupo } from '@/lib/ultimo-grupo';
 
 export default function Grupos() {
   const tema = useTema();
@@ -33,43 +34,35 @@ export default function Grupos() {
   const totalDevo = grupos.reduce((s, g) => s.plus(dec(g.voce_deve)), new Decimal(0));
   const totalMeDevem = grupos.reduce((s, g) => s.plus(dec(g.te_devem)), new Decimal(0));
 
+  // "+ Gasto" já abre no último grupo usado (ou no primeiro da lista), com a troca de grupo no topo
+  function novoGasto() {
+    const ultimo = ultimoGrupo();
+    const id = grupos.some((g) => g.grupo_id === ultimo) ? ultimo! : grupos[0].grupo_id;
+    router.push({ pathname: '/grupo/[id]/gasto', params: { id, escolher: '1' } });
+  }
+
   return (
     <Tela
       aoAtualizar={puxar}
       atualizando={atualizando}
-      sobreposto={<BotaoFlutuante titulo="+ Grupo" aoPressionar={() => router.push('/grupo/novo')} />}>
+      sobreposto={grupos.length > 0 ? <BotaoFlutuante titulo="+ Gasto" aoPressionar={novoGasto} /> : undefined}>
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Linha style={{ gap: 18, paddingHorizontal: 8 }}>
-              <Pressable
-                onPress={() => router.push('/avisos')}
-                hitSlop={10}
-                accessibilityLabel={`Avisos, ${naoLidos} não lidos`}>
-                <Linha style={{ gap: 6 }}>
-                  <Texto variante="forte" cor={tema.primaria}>
-                    Avisos
-                  </Texto>
-                  {naoLidos > 0 ? (
-                    <View style={[estilos.contador, { backgroundColor: tema.negativo }]}>
-                      <Texto variante="suave" cor="#FFFFFF" style={{ fontWeight: '800', fontSize: 12 }}>
-                        {naoLidos > 99 ? '99+' : naoLidos}
-                      </Texto>
-                    </View>
-                  ) : null}
-                </Linha>
-              </Pressable>
-              <Pressable onPress={() => router.push('/conta')} hitSlop={10}>
-                <Texto variante="forte" cor={tema.primaria}>
-                  Conta
-                </Texto>
-              </Pressable>
+            <Linha style={{ gap: 6, paddingHorizontal: 4 }}>
+              <BotaoIcone
+                icone="notifications-outline"
+                rotulo="Avisos"
+                contador={naoLidos}
+                aoPressionar={() => router.push('/avisos')}
+              />
+              <BotaoIcone icone="person-circle-outline" rotulo="Sua conta" aoPressionar={() => router.push('/conta')} />
             </Linha>
           ),
         }}
       />
 
-      {carregando ? <Carregando /> : null}
+      {carregando ? <Esqueleto comResumo={false} linhas={3} /> : null}
       {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={() => recarregar()} /> : null}
 
       <DicaInstalar />
@@ -99,7 +92,20 @@ export default function Grupos() {
       <GruposQueDeixei eu={usuarioId ?? ''} />
 
       {grupos.length > 0 ? (
-        <Botao titulo="Entrar com código" variante="secundario" aoPressionar={() => router.push('/entrar-grupo')} />
+        <Linha style={{ gap: espaco.m }}>
+          <Botao
+            titulo="Novo grupo"
+            variante="secundario"
+            aoPressionar={() => router.push('/grupo/novo')}
+            style={{ flex: 1 }}
+          />
+          <Botao
+            titulo="Entrar com código"
+            variante="secundario"
+            aoPressionar={() => router.push('/entrar-grupo')}
+            style={{ flex: 1 }}
+          />
+        </Linha>
       ) : null}
     </Tela>
   );
@@ -113,7 +119,7 @@ function Total({ rotulo, valor, cor, fundo }: { rotulo: string; valor: Decimal; 
       <Texto variante="rotulo" cor={zerado ? tema.textoSuave : cor}>
         {rotulo}
       </Texto>
-      <Texto variante="grande" cor={zerado ? tema.textoSuave : cor}>
+      <Texto variante="grande" cor={zerado ? tema.textoSuave : cor} numberOfLines={1} style={{ fontSize: 26 }}>
         {reaisCobrar(valor)}
       </Texto>
     </View>
@@ -172,12 +178,4 @@ const estilos = StyleSheet.create({
   cartao: { flexDirection: 'row', borderRadius: raio.g, borderWidth: 1, overflow: 'hidden' },
   faixa: { width: 6 },
   situacao: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: raio.total },
-  contador: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

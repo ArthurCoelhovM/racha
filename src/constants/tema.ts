@@ -33,7 +33,19 @@ export const paleta = {
 
 export type Cores = typeof paleta.claro;
 
-export const coresGrupo = ['#5B4CF0', '#E8680A', '#12924B', '#D92657', '#07879E', '#C78800', '#4D4DCF', '#7A3EC8'];
+// todas com contraste de pelo menos 4,5:1 com letra branca (iniciais e fichas selecionadas)
+export const coresGrupo = ['#5B4CF0', '#C2410C', '#0E7C3F', '#D92657', '#06768A', '#996600', '#4D4DCF', '#7A3EC8'];
+
+// fonte com personalidade só no nome do app, nos títulos e nos valores grandes
+export const fontes = {
+  titulo: 'BricolageGrotesque_800ExtraBold',
+  tituloMedio: 'BricolageGrotesque_700Bold',
+};
+
+// cor do grupo bem clara, para o fundo do resumo (alfa em hexadecimal)
+export function tomClaro(cor: string, escuro: boolean): string {
+  return /^#[0-9a-f]{6}$/i.test(cor) ? `${cor}${escuro ? '26' : '14'}` : 'transparent';
+}
 
 export function corDaPessoa(id: string): string {
   let soma = 0;

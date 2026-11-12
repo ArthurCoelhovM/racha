@@ -10,6 +10,7 @@ reset role;
 create temp table liberadas_esperadas (assinatura text primary key);
 insert into liberadas_esperadas values
   ('atualizar_grupo(p_grupo uuid, p_nome text, p_cor text, p_abatimento boolean, p_divisoes text[], p_lembrete_dias integer)'),
+  ('cobrar(p_grupo uuid, p_devedor uuid)'),
   ('codigo_do_grupo(p_grupo uuid)'),
   ('compartilha_grupo(outro uuid)'),
   ('criar_grupo(p_nome text, p_cor text, p_abatimento boolean, p_divisoes text[], p_lembrete_dias integer)'),
