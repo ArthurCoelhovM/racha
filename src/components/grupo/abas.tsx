@@ -30,7 +30,8 @@ export function Abas<T extends string>({
             <Texto
               variante={pequena ? 'suave' : 'forte'}
               cor={ativa ? tema.texto : tema.textoSuave}
-              style={{ fontWeight: '700' }}>
+              numberOfLines={1}
+              style={[{ fontWeight: '700' }, !pequena && opcoes.length > 3 && { fontSize: 13.5, letterSpacing: -0.2 }]}>
               {rotulo}
             </Texto>
           </Pressable>
@@ -42,5 +43,5 @@ export function Abas<T extends string>({
 
 const estilos = StyleSheet.create({
   abas: { flexDirection: 'row', borderRadius: raio.m, padding: 4, gap: 4 },
-  aba: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: raio.p },
+  aba: { flex: 1, alignItems: 'center', paddingVertical: 9, paddingHorizontal: 2, borderRadius: raio.p },
 });

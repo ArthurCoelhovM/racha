@@ -1,5 +1,5 @@
 import { router, Stack } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { DicaInstalar } from '@/components/dica-instalar';
@@ -17,6 +17,7 @@ export default function Grupos() {
   const tema = useTema();
   const consulta = useInicio();
   const { usuarioId } = useSessao();
+  const [verArquivados, setVerArquivados] = useState(false);
   const dados = consulta.data;
   const erro = textoDoErro(consulta.error);
   const carregando = consulta.isPending && !erro;
@@ -30,6 +31,8 @@ export default function Grupos() {
   }, []);
 
   const grupos = dados?.grupos ?? [];
+  const ativos = grupos.filter((g) => !g.arquivado);
+  const arquivados = grupos.filter((g) => g.arquivado);
   const naoLidos = dados?.naoLidos ?? 0;
   const totalDevo = grupos.reduce((s, g) => s.plus(dec(g.voce_deve)), new Decimal(0));
   const totalMeDevem = grupos.reduce((s, g) => s.plus(dec(g.te_devem)), new Decimal(0));
@@ -37,7 +40,8 @@ export default function Grupos() {
   // "+ Gasto" já abre no último grupo usado (ou no primeiro da lista), com a troca de grupo no topo
   function novoGasto() {
     const ultimo = ultimoGrupo();
-    const id = grupos.some((g) => g.grupo_id === ultimo) ? ultimo! : grupos[0].grupo_id;
+    const lista = ativos.length ? ativos : grupos;
+    const id = lista.some((g) => g.grupo_id === ultimo) ? ultimo! : lista[0].grupo_id;
     router.push({ pathname: '/grupo/[id]/gasto', params: { id, escolher: '1' } });
   }
 
@@ -85,9 +89,18 @@ export default function Grupos() {
         </Vazio>
       ) : null}
 
-      {grupos.map((g) => (
+      {ativos.map((g) => (
         <CartaoGrupo key={g.grupo_id} grupo={g} />
       ))}
+
+      {arquivados.length > 0 ? (
+        <Botao
+          titulo={verArquivados ? 'Esconder arquivados' : `Arquivados (${arquivados.length})`}
+          variante="texto"
+          aoPressionar={() => setVerArquivados(!verArquivados)}
+        />
+      ) : null}
+      {verArquivados ? arquivados.map((g) => <CartaoGrupo key={g.grupo_id} grupo={g} />) : null}
 
       <GruposQueDeixei eu={usuarioId ?? ''} />
 

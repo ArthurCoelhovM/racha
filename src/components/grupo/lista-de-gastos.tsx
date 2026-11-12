@@ -1,12 +1,12 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Botao, Cartao, Linha, Separador, Texto, Vazio } from '@/components/ui';
+import { Botao, Cartao, Icone, Linha, Separador, Texto, Vazio, type NomeIcone } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { dec, reais, reaisCobrar } from '@/lib/dinheiro';
 import { diaCurto, isoParaBr } from '@/lib/formatos';
 import type { Pendencia } from '@/lib/saldos';
-import type { Gasto, Recorrente } from '@/lib/tipos';
+import { infoCategoria, type Gasto, type LancamentoPendente, type Recorrente } from '@/lib/tipos';
 
 // Um gasto está pago quando nenhuma das dívidas que ele criou continua em aberto.
 // Sem abatimento, a pendência aponta para o gasto; com abatimento, para o par de pessoas.
@@ -16,6 +16,42 @@ export function gastoPago(g: Gasto, pendencias: Pendencia[]): boolean {
     pendencias.some(
       (p) => p.devedor === d.devedor && p.credor === d.credor && (p.gasto_id === null || p.gasto_id === g.id),
     ),
+  );
+}
+
+// contas de valor variável esperando alguém preencher o valor do mês
+export function ContasSemValor({
+  pendentes,
+  eu,
+  nome,
+  aoPreencher,
+}: {
+  pendentes: LancamentoPendente[];
+  eu: string;
+  nome: (u: string) => string;
+  aoPreencher: (p: LancamentoPendente) => void;
+}) {
+  const tema = useTema();
+  if (pendentes.length === 0) return null;
+  return (
+    <Cartao style={{ borderColor: tema.aviso }}>
+      <Texto variante="rotulo" cor={tema.aviso}>
+        Falta o valor
+      </Texto>
+      {pendentes.map((p) => (
+        <Linha key={p.id} style={{ justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Texto variante="forte" numberOfLines={1}>
+              {p.recorrente?.descricao ?? 'Conta'} · {isoParaBr(p.data)}
+            </Texto>
+            <Texto variante="suave">
+              {p.responsavel === eu ? 'Você preenche' : `${nome(p.responsavel)} preenche`} o valor desta conta
+            </Texto>
+          </View>
+          <Botao pequeno titulo="Preencher" aoPressionar={() => aoPreencher(p)} />
+        </Linha>
+      ))}
+    </Cartao>
   );
 }
 
@@ -37,7 +73,8 @@ export function ListaDeRecorrentes({
               {r.descricao} · {reais(dec(r.valor_total))}
             </Texto>
             <Texto variante="suave">
-              {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}, próximo em {isoParaBr(r.proxima_data)}
+              {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}
+              {r.valor_variavel ? ', valor muda' : ''}, próximo em {isoParaBr(r.proxima_data)}
             </Texto>
           </View>
           <Botao pequeno variante="perigo" titulo="Parar" confirmar="Parar?" aoPressionar={() => aoParar(r)} />
@@ -106,22 +143,22 @@ function LinhaGasto({
 }) {
   const tema = useTema();
   const minhaParte = g.divisoes.find((d) => d.usuario_id === eu);
-  const pagou = g.pagadores.map((p) => nome(p.usuario_id)).join(' e ');
+  const pagou = g.pagadores.map((p) => nome(p.usuario_id).replace(/^Você$/, 'você')).join(' e ');
+  const categoria = infoCategoria(g.categoria);
   return (
     <Pressable onPress={aoAbrir} style={({ pressed }) => [estilos.linha, { opacity: pressed ? 0.7 : 1 }]}>
       <Linha>
-        <View style={[estilos.data, { backgroundColor: tema.superficie2 }]}>
-          <Texto variante="suave" style={{ fontWeight: '700' }}>
-            {diaCurto(g.data)}
-          </Texto>
+        <View style={[estilos.icone, { backgroundColor: `${categoria.cor}1F` }]}>
+          <Icone nome={categoria.icone as NomeIcone} tamanho={20} cor={categoria.cor} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Texto variante="forte" numberOfLines={1}>
             {g.descricao}
           </Texto>
           <Texto variante="suave" numberOfLines={1}>
-            Pago por {pagou}
+            {diaCurto(g.data)} · pago por {pagou}
             {g.recorrente_id ? ' ↻' : ''}
+            {g.comprovante ? ' 📎' : ''}
           </Texto>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
@@ -144,6 +181,6 @@ function LinhaGasto({
 
 const estilos = StyleSheet.create({
   linha: { padding: espaco.g, gap: espaco.m },
-  data: { width: 52, paddingVertical: 8, borderRadius: raio.p, alignItems: 'center' },
+  icone: { width: 40, height: 40, borderRadius: raio.m, alignItems: 'center', justifyContent: 'center' },
   selo: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 },
 });

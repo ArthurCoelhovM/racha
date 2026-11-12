@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { MembrosEPapeis } from '@/components/configuracoes/membros-e-papeis';
+import { SoParaVoce } from '@/components/configuracoes/so-para-voce';
 import { FormularioGrupo } from '@/components/formulario-grupo';
 import { Aviso, Botao, Carregando, Linha, Separador, Tela, Texto } from '@/components/ui';
 import { espaco } from '@/constants/tema';
@@ -71,6 +72,12 @@ export default function Configuracoes() {
         <>
           <Separador />
           <MembrosEPapeis grupo={grupo} membros={membros.data} eu={eu} papel={papel} aoMudar={() => invalidar(id)} />
+          <Separador />
+          <SoParaVoce
+            grupoId={id}
+            apelido={membros.data.find((m) => m.usuario_id === eu)?.apelido ?? null}
+            aoMudar={() => invalidar(id)}
+          />
         </>
       ) : null}
 

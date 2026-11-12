@@ -6,10 +6,13 @@ import type { Json } from './banco';
 import { supabase } from './supabase';
 import type {
   Aviso,
+  Categoria,
+  Comentario,
   Frequencia,
   Gasto,
   Grupo,
   Item,
+  LancamentoPendente,
   Membro,
   Papel,
   PendenciaFora,
@@ -65,11 +68,20 @@ function paraGrupo(g: LinhaGrupo): Grupo {
 }
 
 // prettier-ignore
-const CAMPOS_GASTO = 'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, pagadores:gasto_pagadores(usuario_id, valor::text), divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text), dividas(devedor, credor)';
+const CAMPOS_GASTO = 'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, categoria, comprovante, pagadores:gasto_pagadores(usuario_id, valor::text), divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text), dividas(devedor, credor)';
 
-type LinhaGasto = Omit<Gasto, 'tipo_divisao' | 'itens'> & { tipo_divisao: string; itens: Json | null };
+type LinhaGasto = Omit<Gasto, 'tipo_divisao' | 'itens' | 'categoria'> & {
+  tipo_divisao: string;
+  itens: Json | null;
+  categoria: string;
+};
 function paraGasto(g: LinhaGasto): Gasto {
-  return { ...g, tipo_divisao: g.tipo_divisao as TipoDivisao, itens: g.itens as Item[] | null };
+  return {
+    ...g,
+    tipo_divisao: g.tipo_divisao as TipoDivisao,
+    itens: g.itens as Item[] | null,
+    categoria: g.categoria as Categoria,
+  };
 }
 
 export async function listarMeusGrupos(): Promise<ResumoGrupo[]> {
@@ -99,15 +111,17 @@ export async function listarMembros(grupoId: string): Promise<Membro[]> {
   const dados = checar(
     await supabase
       .from('membros')
-      .select('usuario_id, papel, ativo, perfil:perfis(id, nome)')
+      .select('usuario_id, papel, ativo, apelido, perfil:perfis(id, nome)')
       .eq('grupo_id', grupoId)
       .order('entrou_em'),
   );
+  // o apelido do grupo vale no lugar do nome em todas as telas do grupo
   return dados.map((m) => ({
     usuario_id: m.usuario_id,
     papel: m.papel as Papel,
     ativo: m.ativo,
-    perfil: m.perfil ?? { id: m.usuario_id, nome: 'Alguém' },
+    apelido: m.apelido,
+    perfil: { id: m.usuario_id, nome: m.apelido || m.perfil?.nome || 'Alguém' },
   }));
 }
 
@@ -290,6 +304,8 @@ export type GastoParaSalvar = {
   id?: string;
   grupoId: string;
   descricao: string;
+  categoria: Categoria;
+  comprovante: string | null;
   total: Decimal;
   data: string;
   tipo: TipoDivisao;
@@ -303,6 +319,8 @@ function montarPayload(g: GastoParaSalvar): Json {
     id: g.id ?? null,
     grupo_id: g.grupoId,
     descricao: g.descricao,
+    categoria: g.categoria,
+    comprovante: g.comprovante,
     valor_total: g.total.toFixed(2),
     data: g.data,
     tipo_divisao: g.tipo,
@@ -320,14 +338,105 @@ export async function criarRecorrente(
   g: GastoParaSalvar,
   frequencia: Frequencia,
   primeiroGastoId: string,
+  valorVariavel: boolean,
 ): Promise<string> {
   return checar(
     await supabase.rpc('criar_recorrente', {
       p: montarPayload({ ...g, id: undefined }),
       p_frequencia: frequencia,
       p_gasto: primeiroGastoId,
+      p_valor_variavel: valorVariavel,
     }),
   );
+}
+
+export async function listarPendentes(grupoId: string): Promise<LancamentoPendente[]> {
+  return checar(
+    await supabase
+      .from('lancamentos_pendentes')
+      .select('id, recorrente_id, data, responsavel, recorrente:recorrentes(descricao, valor_total::text, modelo)')
+      .eq('grupo_id', grupoId)
+      .is('gasto_id', null)
+      .order('data'),
+  ) as LancamentoPendente[];
+}
+
+export async function preencherLancamento(pendenteId: string, g: GastoParaSalvar): Promise<string> {
+  return checar(await supabase.rpc('preencher_lancamento', { p_pendente: pendenteId, p: montarPayload(g) }));
+}
+
+export type Filtros = { texto: string; pessoa: string | null; mes: string | null; categoria: Categoria | null };
+
+export function temFiltro(f: Filtros) {
+  return !!(f.texto.trim() || f.pessoa || f.mes || f.categoria);
+}
+
+export async function buscarGastos(grupoId: string, f: Filtros): Promise<Gasto[]> {
+  const ids = checar(
+    await supabase.rpc('buscar_gastos', {
+      p_grupo: grupoId,
+      p_texto: f.texto.trim() || undefined,
+      p_pessoa: f.pessoa ?? undefined,
+      p_mes: f.mes ?? undefined,
+      p_categoria: f.categoria ?? undefined,
+    }),
+  );
+  if (ids.length === 0) return [];
+  const linhas = checar(
+    await supabase
+      .from('gastos')
+      .select(CAMPOS_GASTO)
+      .in('id', ids)
+      .order('data', { ascending: false })
+      .order('criado_em', { ascending: false }),
+  );
+  return linhas.map((g) => paraGasto(g as LinhaGasto));
+}
+
+export async function arquivarGrupo(grupoId: string, arquivar: boolean): Promise<void> {
+  semErro(await supabase.rpc('arquivar_grupo', { p_grupo: grupoId, p_arquivar: arquivar }));
+}
+
+export async function definirApelido(grupoId: string, apelido: string): Promise<void> {
+  semErro(await supabase.rpc('definir_apelido', { p_grupo: grupoId, p_apelido: apelido }));
+}
+
+export async function listarComentarios(gastoId: string): Promise<Comentario[]> {
+  return checar(
+    await supabase
+      .from('comentarios')
+      .select('id, usuario_id, texto, criado_em')
+      .eq('gasto_id', gastoId)
+      .order('criado_em'),
+  );
+}
+
+export async function comentar(gastoId: string, texto: string): Promise<void> {
+  semErro(await supabase.rpc('comentar', { p_gasto: gastoId, p_texto: texto }));
+}
+
+export async function apagarComentario(id: number): Promise<void> {
+  semErro(await supabase.from('comentarios').delete().eq('id', id));
+}
+
+export async function meusDados(): Promise<unknown> {
+  return checar(await supabase.rpc('meus_dados'));
+}
+
+// foto do comprovante: grupo/gasto-ou-novo/arquivo; o banco confere que o grupo é o mesmo
+export async function enviarComprovante(grupoId: string, uri: string, tipo: string): Promise<string> {
+  const extensao = tipo.includes('png') ? 'png' : tipo.includes('webp') ? 'webp' : 'jpg';
+  const caminho = `${grupoId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extensao}`;
+  const corpo = await (await fetch(uri)).arrayBuffer();
+  const { error } = await supabase.storage.from('comprovantes').upload(caminho, corpo, { contentType: tipo });
+  if (error) throw new Error('Não deu para enviar a foto. Tente de novo.');
+  return caminho;
+}
+
+export async function urlDoComprovante(caminho: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('comprovantes').createSignedUrl(caminho, 60 * 60);
+  if (error || !data) throw new Error('Não deu para abrir a foto do comprovante.');
+  return data.signedUrl;
 }
 
 export async function pararRecorrente(id: string): Promise<void> {
@@ -346,7 +455,7 @@ export async function listarRecorrentes(grupoId: string): Promise<Recorrente[]> 
   return checar(
     await supabase
       .from('recorrentes')
-      .select('id, descricao, valor_total::text, frequencia, proxima_data, ativo')
+      .select('id, descricao, valor_total::text, frequencia, proxima_data, ativo, valor_variavel')
       .eq('grupo_id', grupoId)
       .eq('ativo', true)
       .order('proxima_data'),

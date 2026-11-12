@@ -42,7 +42,20 @@ export default function Avisos() {
     lembrete: tema.aviso,
     recorrente_parado: tema.negativo,
     cobranca: tema.negativo,
+    falta_valor: tema.aviso,
+    comentario: tema.primaria,
   };
+
+  // comentário abre o gasto; o resto abre o grupo
+  function abrir(a: Aviso) {
+    if (!a.grupo_id) return;
+    const gastoId = a.dados && typeof a.dados.gasto_id === 'string' ? a.dados.gasto_id : null;
+    if (a.tipo === 'comentario' && gastoId) {
+      router.push({ pathname: '/grupo/[id]/gasto', params: { id: a.grupo_id, gastoId } });
+    } else {
+      router.push({ pathname: '/grupo/[id]', params: { id: a.grupo_id } });
+    }
+  }
 
   if (carregando) return <Carregando />;
 
@@ -59,7 +72,7 @@ export default function Avisos() {
               {i > 0 ? <Separador /> : null}
               <Pressable
                 disabled={!a.grupo_id}
-                onPress={() => a.grupo_id && router.push({ pathname: '/grupo/[id]', params: { id: a.grupo_id } })}
+                onPress={() => abrir(a)}
                 style={({ pressed }) => [
                   estilos.linha,
                   !a.lido && { backgroundColor: tema.superficie2 },

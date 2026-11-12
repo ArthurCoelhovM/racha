@@ -24,11 +24,16 @@ import {
   listarMembros,
   listarMeusGrupos,
   listarPendencias,
+  listarPendentes,
   listarRecorrentes,
   marcarPago,
   mensagemDeErro,
   paginaDeGastos,
   pendenciasDeGruposQueSai,
+  buscarGastos,
+  listarGastos,
+  temFiltro,
+  type Filtros,
 } from './api';
 import type { Pendencia } from './saldos';
 
@@ -132,6 +137,24 @@ export function useHistorico(id: string) {
 
 export function useRecorrentes(id: string) {
   return useQuery({ queryKey: chaves.recorrentes(id), queryFn: () => listarRecorrentes(id) });
+}
+
+// todos os gastos do grupo, só quando a aba Resumo abre
+export function useTodosGastos(id: string, habilitado: boolean) {
+  return useQuery({ queryKey: ['grupo', id, 'todos-gastos'], queryFn: () => listarGastos(id), enabled: habilitado });
+}
+
+export function useBusca(id: string, filtros: Filtros) {
+  return useQuery({
+    queryKey: ['grupo', id, 'busca', filtros],
+    queryFn: () => buscarGastos(id, filtros),
+    enabled: temFiltro(filtros),
+    placeholderData: (anterior) => anterior,
+  });
+}
+
+export function usePendentes(id: string) {
+  return useQuery({ queryKey: ['grupo', id, 'pendentes'], queryFn: () => listarPendentes(id) });
 }
 
 export function useCodigo(id: string, habilitado: boolean) {

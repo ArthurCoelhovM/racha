@@ -3,12 +3,16 @@ import { isoParaBr } from '@/lib/formatos';
 import type { Frequencia } from '@/lib/tipos';
 
 export function RepetirGasto({
+  valorVariavel,
+  aoMudarVariavel,
   repetir,
   frequencia,
   proximaData,
   aoMudarRepetir,
   aoMudarFrequencia,
 }: {
+  valorVariavel: boolean;
+  aoMudarVariavel: (v: boolean) => void;
   repetir: boolean;
   frequencia: Frequencia;
   proximaData: string | null;
@@ -37,7 +41,17 @@ export function RepetirGasto({
               aoPressionar={() => aoMudarFrequencia('semanal')}
             />
           </Fichas>
-          {proximaData ? <Texto variante="suave">Próximo lançamento em {isoParaBr(proximaData)}.</Texto> : null}
+          <Interruptor
+            titulo="O valor muda todo mês"
+            descricao="Para luz e água: no dia, o app avisa quem pagou para preencher o valor da conta."
+            valor={valorVariavel}
+            aoMudar={aoMudarVariavel}
+          />
+          {proximaData ? (
+            <Texto variante="suave">
+              {valorVariavel ? 'Próximo aviso em' : 'Próximo lançamento em'} {isoParaBr(proximaData)}.
+            </Texto>
+          ) : null}
         </>
       ) : null}
     </Cartao>

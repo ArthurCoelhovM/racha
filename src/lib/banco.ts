@@ -60,6 +60,56 @@ export type Database = {
           },
         ];
       };
+      comentarios: {
+        Row: {
+          criado_em: string;
+          gasto_id: string;
+          grupo_id: string;
+          id: number;
+          texto: string;
+          usuario_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          criado_em?: string;
+          gasto_id: string;
+          grupo_id: string;
+          id?: never;
+          texto: string;
+          usuario_id?: string | null;
+        };
+        Update: {
+          criado_em?: string;
+          gasto_id?: string;
+          grupo_id?: string;
+          id?: never;
+          texto?: string;
+          usuario_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'comentarios_gasto_id_fkey';
+            columns: ['gasto_id'];
+            isOneToOne: false;
+            referencedRelation: 'gastos';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'comentarios_grupo_id_fkey';
+            columns: ['grupo_id'];
+            isOneToOne: false;
+            referencedRelation: 'grupos';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'comentarios_usuario_id_fkey';
+            columns: ['usuario_id'];
+            isOneToOne: false;
+            referencedRelation: 'perfis';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       dispositivos: {
         Row: {
           assinatura: Json | null;
@@ -272,6 +322,8 @@ export type Database = {
       gastos: {
         Row: {
           atualizado_em: string;
+          categoria: string;
+          comprovante: string | null;
           criado_em: string;
           criado_por: string;
           data: string;
@@ -286,6 +338,8 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           atualizado_em?: string;
+          categoria?: string;
+          comprovante?: string | null;
           criado_em?: string;
           criado_por: string;
           data?: string;
@@ -299,6 +353,8 @@ export type Database = {
         };
         Update: {
           atualizado_em?: string;
+          categoria?: string;
+          comprovante?: string | null;
           criado_em?: string;
           criado_por?: string;
           data?: string;
@@ -434,6 +490,66 @@ export type Database = {
           },
         ];
       };
+      lancamentos_pendentes: {
+        Row: {
+          criado_em: string;
+          data: string;
+          gasto_id: string | null;
+          grupo_id: string;
+          id: string;
+          recorrente_id: string;
+          responsavel: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          criado_em?: string;
+          data: string;
+          gasto_id?: string | null;
+          grupo_id: string;
+          id?: string;
+          recorrente_id: string;
+          responsavel: string;
+        };
+        Update: {
+          criado_em?: string;
+          data?: string;
+          gasto_id?: string | null;
+          grupo_id?: string;
+          id?: string;
+          recorrente_id?: string;
+          responsavel?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'lancamentos_pendentes_gasto_id_fkey';
+            columns: ['gasto_id'];
+            isOneToOne: false;
+            referencedRelation: 'gastos';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'lancamentos_pendentes_grupo_id_fkey';
+            columns: ['grupo_id'];
+            isOneToOne: false;
+            referencedRelation: 'grupos';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'lancamentos_pendentes_recorrente_id_fkey';
+            columns: ['recorrente_id'];
+            isOneToOne: false;
+            referencedRelation: 'recorrentes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'lancamentos_pendentes_responsavel_fkey';
+            columns: ['responsavel'];
+            isOneToOne: false;
+            referencedRelation: 'perfis';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       leituras_nfce: {
         Row: {
           criado_em: string;
@@ -463,6 +579,8 @@ export type Database = {
       };
       membros: {
         Row: {
+          apelido: string | null;
+          arquivado: boolean;
           ativo: boolean;
           entrou_em: string;
           grupo_id: string;
@@ -471,6 +589,8 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          apelido?: string | null;
+          arquivado?: boolean;
           ativo?: boolean;
           entrou_em?: string;
           grupo_id: string;
@@ -478,6 +598,8 @@ export type Database = {
           usuario_id: string;
         };
         Update: {
+          apelido?: string | null;
+          arquivado?: boolean;
           ativo?: boolean;
           entrou_em?: string;
           grupo_id?: string;
@@ -612,6 +734,7 @@ export type Database = {
           modelo: NonNullable<Json>;
           proxima_data: string;
           valor_total: number;
+          valor_variavel: boolean;
         };
         ComputedFields: never;
         Insert: {
@@ -626,6 +749,7 @@ export type Database = {
           modelo: NonNullable<Json>;
           proxima_data: string;
           valor_total: number;
+          valor_variavel?: boolean;
         };
         Update: {
           ativo?: boolean;
@@ -639,6 +763,7 @@ export type Database = {
           modelo?: NonNullable<Json>;
           proxima_data?: string;
           valor_total?: number;
+          valor_variavel?: boolean;
         };
         Relationships: [
           {
@@ -740,6 +865,7 @@ export type Database = {
     };
     Functions: {
       anonimizar_conta: { Args: { p_usuario: string }; Returns: undefined };
+      arquivar_grupo: { Args: { p_arquivar: boolean; p_grupo: string }; Returns: undefined };
       atualizar_grupo: {
         Args: {
           p_abatimento: boolean;
@@ -751,9 +877,14 @@ export type Database = {
         };
         Returns: undefined;
       };
+      buscar_gastos: {
+        Args: { p_categoria?: string; p_grupo: string; p_mes?: string; p_pessoa?: string; p_texto?: string };
+        Returns: string[];
+      };
       calcular_dividas: { Args: { p_gasto: string }; Returns: undefined };
       cobrar: { Args: { p_devedor: string; p_grupo: string }; Returns: string };
       codigo_do_grupo: { Args: { p_grupo: string }; Returns: string };
+      comentar: { Args: { p_gasto: string; p_texto: string }; Returns: number };
       compartilha_grupo: { Args: { outro: string }; Returns: boolean };
       criar_grupo: {
         Args: {
@@ -765,7 +896,11 @@ export type Database = {
         };
         Returns: string;
       };
-      criar_recorrente: { Args: { p: Json; p_frequencia: string; p_gasto?: string }; Returns: string };
+      criar_recorrente: {
+        Args: { p: Json; p_frequencia: string; p_gasto?: string; p_valor_variavel?: boolean };
+        Returns: string;
+      };
+      definir_apelido: { Args: { p_apelido: string; p_grupo: string }; Returns: undefined };
       definir_papel: { Args: { p_grupo: string; p_papel: string; p_usuario: string }; Returns: undefined };
       definir_permissoes: { Args: { p_grupo: string; p_permissoes: Json }; Returns: undefined };
       dividas_em_aberto: {
@@ -794,6 +929,7 @@ export type Database = {
         Returns: string;
       };
       meu_papel: { Args: { g: string }; Returns: string };
+      meus_dados: { Args: Record<PropertyKey, never>; Returns: Json };
       nivel_do_papel: { Args: { p: string }; Returns: number };
       novo_codigo_convite: { Args: { p_grupo: string }; Returns: string };
       parar_recorrente: { Args: { p_id: string }; Returns: undefined };
@@ -837,6 +973,7 @@ export type Database = {
       };
       permissoes_validas: { Args: { p: Json }; Returns: boolean };
       pode: { Args: { acao: string; g: string }; Returns: boolean };
+      preencher_lancamento: { Args: { p: Json; p_pendente: string }; Returns: string };
       proxima_ocorrencia: { Args: { d: string; dia: number; frequencia: string }; Returns: string };
       reais: { Args: { v: number }; Returns: string };
       recalcular_saldo_par: { Args: { c: string; d: string; g: string }; Returns: undefined };
@@ -855,6 +992,7 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: {
           abatimento: boolean;
+          arquivado: boolean;
           cor: string;
           grupo_id: string;
           nome: string;

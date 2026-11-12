@@ -3,6 +3,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Alteracoes } from '@/components/gasto/alteracoes';
+import { Comentarios } from '@/components/gasto/comentarios';
+import { Comprovante } from '@/components/gasto/comprovante';
+import { SeletorDeCategoria } from '@/components/gasto/seletor-de-categoria';
 import { ComoFica } from '@/components/gasto/como-fica';
 import { DetalheDoGasto } from '@/components/gasto/detalhe-do-gasto';
 import { novoItem } from '@/components/gasto/formulario-de-itens';
@@ -14,7 +17,7 @@ import { CampoValor } from '@/components/gasto/campo-valor';
 import { Aviso, Botao, Campo, CoresDoGrupo, Esqueleto, Ficha, Fichas, Icone, Tela, Texto } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
-import { criarRecorrente, excluirGasto, mensagemDeErro, salvarGasto } from '@/lib/api';
+import { criarRecorrente, excluirGasto, mensagemDeErro, preencherLancamento, salvarGasto } from '@/lib/api';
 import {
   textoDoErro,
   useGasto,
@@ -23,19 +26,22 @@ import {
   useInicio,
   useInvalidarGrupo,
   useMembros,
+  usePendentes,
 } from '@/lib/consultas';
 import { itensDaNota, ouvirNota } from '@/lib/cupom';
 import { Decimal, lerValor, paraCampo, reais } from '@/lib/dinheiro';
 import { calcularDivisao, calcularPagadores, ordemDosPagadores, totalDosItens } from '@/lib/divisao';
-import { hojeIso, proximaOcorrencia } from '@/lib/formatos';
+import { hojeIso, isoParaBr, proximaOcorrencia } from '@/lib/formatos';
 import { meuPapel, pode, quemPode } from '@/lib/permissoes';
 import { useSessao } from '@/lib/sessao';
 import { vibrarSucesso } from '@/lib/toque';
 import {
   TIPOS_DIVISAO,
+  type Categoria,
   type Frequencia,
   type Gasto,
   type Grupo,
+  type LancamentoPendente,
   type Membro,
   type RegistroHistorico,
   type TipoDivisao,
@@ -43,11 +49,13 @@ import {
 import { lembrarGrupo } from '@/lib/ultimo-grupo';
 
 export default function TelaGasto() {
-  const { id, gastoId, escolher } = useLocalSearchParams<{
+  const { id, gastoId, escolher, pendente } = useLocalSearchParams<{
     id: string;
     gastoId?: string;
     escolher?: string;
+    pendente?: string;
   }>();
+  const pendentes = usePendentes(id);
   const escolherGrupo = !gastoId && escolher === '1';
   const { usuarioId } = useSessao();
   const grupo = useGrupo(id);
@@ -65,7 +73,7 @@ export default function TelaGasto() {
       </Tela>
     );
   }
-  if (!grupo.data || !membros.data || (gastoId && !gasto.data)) {
+  if (!grupo.data || !membros.data || (gastoId && !gasto.data) || (pendente && !pendentes.data)) {
     return (
       <Tela>
         {topo}
@@ -76,10 +84,13 @@ export default function TelaGasto() {
 
   // quem já estava no gasto continua no formulário, mesmo que tenha saído do grupo
   const doGasto = gastoId ? gasto.data! : null;
+  // conta de valor variável: o formulário já vem com o que foi usado da última vez, menos o valor
+  const doPendente = pendente ? (pendentes.data ?? []).find((p) => p.id === pendente) : undefined;
+  const inicial = doGasto ?? (doPendente ? gastoDoModelo(doPendente) : null);
   const noGasto = new Set<string>([
-    ...(doGasto?.pagadores ?? []).map((p) => p.usuario_id),
-    ...(doGasto?.divisoes ?? []).map((d) => d.usuario_id),
-    ...(doGasto?.itens ?? []).flatMap((i) => i.participantes),
+    ...(inicial?.pagadores ?? []).map((p) => p.usuario_id),
+    ...(inicial?.divisoes ?? []).map((d) => d.usuario_id),
+    ...(inicial?.itens ?? []).flatMap((i) => i.participantes),
   ]);
 
   const eu = usuarioId ?? '';
@@ -110,7 +121,16 @@ export default function TelaGasto() {
             }
           />
           {doGasto ? <DetalheDoGasto gasto={doGasto} nome={nome} /> : null}
+          {doGasto?.comprovante ? (
+            <Comprovante
+              grupoId={doGasto.grupo_id}
+              caminho={doGasto.comprovante}
+              podeMudar={false}
+              aoMudar={() => {}}
+            />
+          ) : null}
           <Alteracoes registros={registros} nome={nome} />
+          {doGasto ? <Comentarios gastoId={doGasto.id} eu={eu} nome={nome} /> : null}
         </Tela>
       </CoresDoGrupo>
     );
@@ -119,10 +139,12 @@ export default function TelaGasto() {
   return (
     <CoresDoGrupo membros={membros.data}>
       <Formulario
-        key={doGasto?.id ?? 'novo'}
+        key={doGasto?.id ?? pendente ?? 'novo'}
         grupo={grupo.data}
         membros={membros.data.filter((m) => m.ativo || noGasto.has(m.usuario_id))}
         gasto={doGasto}
+        inicial={inicial}
+        pendenteId={doPendente?.id ?? null}
         eu={eu}
         nome={nome}
         historico={registros}
@@ -146,6 +168,8 @@ function Formulario({
   grupo,
   membros,
   gasto,
+  inicial,
+  pendenteId,
   eu,
   nome,
   historico,
@@ -155,6 +179,8 @@ function Formulario({
   grupo: Grupo;
   membros: Membro[];
   gasto: Gasto | null;
+  inicial: Gasto | null;
+  pendenteId: string | null;
   eu: string;
   nome: (u: string) => string;
   historico: RegistroHistorico[];
@@ -168,31 +194,33 @@ function Formulario({
   const podeExcluir = !!gasto;
 
   const permitidos = grupo.divisoes_permitidas;
-  const tipoDoGasto = gasto?.tipo_divisao;
+  const tipoDoGasto = inicial?.tipo_divisao;
 
-  const [descricao, setDescricao] = useState(gasto?.descricao ?? '');
+  const [descricao, setDescricao] = useState(inicial?.descricao ?? '');
   const [valorTexto, setValorTexto] = useState(gasto ? paraCampo(gasto.valor_total) : '');
-  const [data, setData] = useState(gasto?.data ?? hojeIso());
+  const [data, setData] = useState(inicial?.data ?? hojeIso());
 
-  const variosNoInicio = (gasto?.pagadores.length ?? 0) > 1;
+  const variosNoInicio = (inicial?.pagadores.length ?? 0) > 1;
   const [varios, setVarios] = useState(variosNoInicio);
   const [pagadorUnico, setPagadorUnico] = useState(
-    gasto?.pagadores[0]?.usuario_id ?? (ativos.includes(eu) ? eu : ativos[0]),
+    inicial?.pagadores[0]?.usuario_id ?? (ativos.includes(eu) ? eu : ativos[0]),
   );
   const [valoresPagos, setValoresPagos] = useState<Record<string, string>>(() =>
-    variosNoInicio ? Object.fromEntries(gasto!.pagadores.map((p) => [p.usuario_id, paraCampo(p.valor)])) : {},
+    variosNoInicio ? Object.fromEntries(inicial!.pagadores.map((p) => [p.usuario_id, paraCampo(p.valor)])) : {},
   );
 
   const [divisaoEstado, setDivisaoEstado] = useState<EstadoDivisao>(() => ({
     tipo: tipoDoGasto && permitidos.includes(tipoDoGasto) ? tipoDoGasto : permitidos[0],
-    selecionados: tipoDoGasto === 'igual' ? gasto!.divisoes.map((d) => d.usuario_id) : ativos,
-    valores: tipoDoGasto === 'exato' ? porPessoa(gasto, 'valor', true) : {},
-    porcentagens: tipoDoGasto === 'porcentagem' ? porPessoa(gasto, 'parametro', false) : {},
+    selecionados: tipoDoGasto === 'igual' ? inicial!.divisoes.map((d) => d.usuario_id) : ativos,
+    valores: tipoDoGasto === 'exato' ? porPessoa(inicial, 'valor', true) : {},
+    porcentagens: tipoDoGasto === 'porcentagem' ? porPessoa(inicial, 'parametro', false) : {},
     cotas:
-      tipoDoGasto === 'cotas' ? porPessoa(gasto, 'parametro', false) : Object.fromEntries(ativos.map((u) => [u, '1'])),
+      tipoDoGasto === 'cotas'
+        ? porPessoa(inicial, 'parametro', false)
+        : Object.fromEntries(ativos.map((u) => [u, '1'])),
     itens:
-      tipoDoGasto === 'itens' && gasto?.itens?.length
-        ? gasto.itens.map((i) => ({ ...i, valor: paraCampo(i.valor) }))
+      tipoDoGasto === 'itens' && inicial?.itens?.length
+        ? inicial.itens.map((i) => ({ ...i, valor: paraCampo(i.valor) }))
         : [novoItem(ativos)],
   }));
   const { tipo, itens } = divisaoEstado;
@@ -202,12 +230,15 @@ function Formulario({
   // detalhes (quem pagou e como dividir) começam fechados no caso comum: você pagou, igual entre todos
   const [detalhes, setDetalhes] = useState(
     () =>
-      !!gasto &&
-      (gasto.pagadores.length > 1 ||
-        gasto.tipo_divisao !== 'igual' ||
-        gasto.divisoes.length !== ativos.length ||
-        gasto.pagadores[0]?.usuario_id !== eu),
+      !!inicial &&
+      (inicial.pagadores.length > 1 ||
+        inicial.tipo_divisao !== 'igual' ||
+        inicial.divisoes.length !== ativos.length ||
+        inicial.pagadores[0]?.usuario_id !== eu),
   );
+  const [categoria, setCategoria] = useState<Categoria>(inicial?.categoria ?? 'outros');
+  const [comprovante, setComprovante] = useState<string | null>(gasto?.comprovante ?? null);
+  const [valorVariavel, setValorVariavel] = useState(false);
   const [infoNota, setInfoNota] = useState<string | null>(null);
   const [repetir, setRepetir] = useState(false);
   const [frequencia, setFrequencia] = useState<Frequencia>('mensal');
@@ -224,6 +255,7 @@ function Formulario({
         );
         const loja = nota.estabelecimento?.slice(0, 80) ?? 'Compra';
         setDescricao((atual) => (atual.trim() ? atual : loja));
+        setCategoria('mercado');
         if (nota.data) setData(nota.data);
         setValorTexto(paraCampo(totalNota));
         const desconto =
@@ -267,6 +299,8 @@ function Formulario({
         id: gasto?.id,
         grupoId: grupo.id,
         descricao: descricao.trim(),
+        categoria,
+        comprovante,
         total,
         data,
         tipo,
@@ -281,8 +315,8 @@ function Formulario({
         pagadores: pagadores.pagadores,
         partes: divisao.partes,
       };
-      const novoId = await salvarGasto(dadosGasto);
-      if (!gasto && repetir) await criarRecorrente(dadosGasto, frequencia, novoId);
+      const novoId = pendenteId ? await preencherLancamento(pendenteId, dadosGasto) : await salvarGasto(dadosGasto);
+      if (!gasto && !pendenteId && repetir) await criarRecorrente(dadosGasto, frequencia, novoId, valorVariavel);
       lembrarGrupo(grupo.id);
       vibrarSucesso();
       await invalidar(grupo.id);
@@ -312,8 +346,11 @@ function Formulario({
 
   return (
     <Tela>
-      <Stack.Screen options={{ title: gasto ? 'Editar gasto' : 'Novo gasto' }} />
+      <Stack.Screen options={{ title: gasto ? 'Editar gasto' : pendenteId ? 'Preencher o valor' : 'Novo gasto' }} />
       {topo}
+      {pendenteId ? (
+        <Aviso tipo="info" texto={`Conta de ${descricao} de ${isoParaBr(data)}: só falta o valor deste mês.`} />
+      ) : null}
 
       {infoNota ? <Aviso tipo="info" texto={infoNota} /> : null}
 
@@ -321,7 +358,7 @@ function Formulario({
         valor={valorTexto}
         aoMudar={setValorTexto}
         fixo={tipo === 'itens' ? paraCampo(total) : undefined}
-        focar={!gasto && !escolherGrupo}
+        focar={(!gasto && !escolherGrupo) || !!pendenteId}
       />
 
       <Campo
@@ -331,6 +368,8 @@ function Formulario({
         placeholder="Mercado, luz, pizza..."
         maxLength={80}
       />
+
+      <SeletorDeCategoria valor={categoria} aoMudar={setCategoria} />
 
       <CampoData valor={data} aoMudar={setData} />
 
@@ -379,7 +418,9 @@ function Formulario({
 
       <ComoFica partes={divisao.partes} erro={total.gt(0) ? divisao.erro : null} nome={nome} />
 
-      {!gasto ? (
+      <Comprovante grupoId={grupo.id} caminho={comprovante} podeMudar aoMudar={setComprovante} />
+
+      {!gasto && !pendenteId ? (
         <Botao
           titulo="Ler cupom fiscal (QR code)"
           variante="secundario"
@@ -387,8 +428,10 @@ function Formulario({
         />
       ) : null}
 
-      {!gasto ? (
+      {!gasto && !pendenteId ? (
         <RepetirGasto
+          valorVariavel={valorVariavel}
+          aoMudarVariavel={setValorVariavel}
           repetir={repetir}
           frequencia={frequencia}
           proximaData={proximaData}
@@ -409,8 +452,38 @@ function Formulario({
         />
       ) : null}
       <Alteracoes registros={historico} nome={nome} />
+      {gasto ? <Comentarios gastoId={gasto.id} eu={eu} nome={nome} /> : null}
     </Tela>
   );
+}
+
+// um gasto "de mentira" montado com o modelo do recorrente, para preencher o formulário
+function gastoDoModelo(p: LancamentoPendente): Gasto {
+  const m = (p.recorrente?.modelo ?? {}) as Partial<{
+    descricao: string;
+    tipo_divisao: TipoDivisao;
+    categoria: Categoria;
+    itens: Gasto['itens'];
+    pagadores: { usuario_id: string; valor: string }[];
+    divisoes: { usuario_id: string; parametro: string | null; valor: string }[];
+  }>;
+  return {
+    id: '',
+    grupo_id: '',
+    descricao: m.descricao ?? p.recorrente?.descricao ?? '',
+    valor_total: '',
+    data: p.data,
+    tipo_divisao: m.tipo_divisao ?? 'igual',
+    itens: null,
+    criado_por: '',
+    criado_em: '',
+    recorrente_id: p.recorrente_id,
+    categoria: m.categoria ?? 'contas',
+    comprovante: null,
+    pagadores: m.pagadores ?? [],
+    divisoes: m.divisoes ?? [],
+    dividas: [],
+  };
 }
 
 // vindo do "+ Gasto" da tela inicial: dá para trocar o grupo sem voltar

@@ -67,9 +67,13 @@ test('sem pagador entre os que dividem, os centavos vão na ordem', () => {
 });
 
 test('cotas e porcentagens também fecham em centavos', () => {
-  const r = calcularDivisao('cotas', new Decimal('100.01'), ['a', 'b', 'c'], { ...vazio, cotas: { a: '1', b: '1', c: '2' } }, [
-    'c',
-  ]);
+  const r = calcularDivisao(
+    'cotas',
+    new Decimal('100.01'),
+    ['a', 'b', 'c'],
+    { ...vazio, cotas: { a: '1', b: '1', c: '2' } },
+    ['c'],
+  );
   assert.deepEqual(
     r.partes.map((p) => p.valor.toString()),
     ['25', '25', '50.01'],

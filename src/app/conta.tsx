@@ -2,7 +2,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Aviso, Botao, Campo, Cartao, Interruptor, Separador, Tela, Texto } from '@/components/ui';
-import { atualizarMeuNome, buscarMeuPerfil, excluirMinhaConta, mensagemDeErro } from '@/lib/api';
+import { atualizarMeuNome, buscarMeuPerfil, excluirMinhaConta, mensagemDeErro, meusDados } from '@/lib/api';
+import { exportarCsv } from '@/lib/csv';
 import { ativarPush, desativarPush, situacaoPush, type SituacaoPush } from '@/lib/push';
 import { useSessao } from '@/lib/sessao';
 import { supabase } from '@/lib/supabase';
@@ -15,6 +16,22 @@ export default function Conta() {
   const [push, setPush] = useState<SituacaoPush | null>(null);
   const [mudandoPush, setMudandoPush] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
+  const [exportando, setExportando] = useState(false);
+
+  // tudo o que o app guarda sobre você, num arquivo JSON (LGPD)
+  async function exportar() {
+    setExportando(true);
+    setAviso(null);
+    try {
+      const dados = await meusDados();
+      await exportarCsv('meus-dados-super-organizador.json', JSON.stringify(dados, null, 2), 'application/json');
+      setAviso({ texto: 'Seus dados foram exportados.', tipo: 'ok' });
+    } catch (e) {
+      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+    } finally {
+      setExportando(false);
+    }
+  }
 
   useEffect(() => {
     if (!usuarioId) return;
@@ -109,6 +126,12 @@ export default function Conta() {
 
       <Botao titulo="Trocar senha" variante="secundario" aoPressionar={() => router.push('/nova-senha')} />
       <Botao titulo="Política de privacidade" variante="secundario" aoPressionar={() => router.push('/privacidade')} />
+      <Botao
+        titulo="Exportar todos os meus dados"
+        variante="secundario"
+        carregando={exportando}
+        aoPressionar={exportar}
+      />
       <Botao titulo="Sair da conta" variante="perigo" confirmar="Toque de novo para sair" aoPressionar={sair} />
 
       <Separador />

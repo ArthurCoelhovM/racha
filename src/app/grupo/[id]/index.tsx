@@ -4,11 +4,21 @@ import { useCallback, useMemo, useState } from 'react';
 import { Abas } from '@/components/grupo/abas';
 import { Historico } from '@/components/grupo/historico';
 import { ListaDeDividas } from '@/components/grupo/lista-de-dividas';
-import { ListaDeGastos, ListaDeRecorrentes } from '@/components/grupo/lista-de-gastos';
+import { AbaResumo } from '@/components/grupo/aba-resumo';
+import { FiltrosDeGastos, SEM_FILTRO } from '@/components/grupo/filtros-de-gastos';
+import { ContasSemValor, ListaDeGastos, ListaDeRecorrentes } from '@/components/grupo/lista-de-gastos';
 import { ResumoDoGrupo } from '@/components/grupo/resumo-do-grupo';
 import { SaldosPorPessoa } from '@/components/grupo/saldos-por-pessoa';
 import { Aviso, Botao, BotaoFlutuante, BotaoIcone, CoresDoGrupo, Esqueleto, Linha, Tela, Vazio } from '@/components/ui';
-import { cobrar, ehForaDoGrupo, listarGastos, mensagemDeErro, pararRecorrente } from '@/lib/api';
+import {
+  cobrar,
+  ehForaDoGrupo,
+  listarGastos,
+  mensagemDeErro,
+  pararRecorrente,
+  temFiltro,
+  type Filtros,
+} from '@/lib/api';
 import {
   textoDoErro,
   useAtualizarAoFocar,
@@ -22,6 +32,9 @@ import {
   usePendencias,
   useRecorrentes,
   useTotalGastos,
+  useBusca,
+  usePendentes,
+  useTodosGastos,
   usePuxar,
 } from '@/lib/consultas';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
@@ -32,7 +45,7 @@ import { vibrarSucesso } from '@/lib/toque';
 import { useSessao } from '@/lib/sessao';
 import type { Recorrente } from '@/lib/tipos';
 
-type Aba = 'dividas' | 'gastos' | 'historico';
+type Aba = 'dividas' | 'gastos' | 'resumo' | 'historico';
 type Visao = 'lista' | 'pessoas' | 'grafico';
 type Mensagem = { texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string };
 
@@ -56,6 +69,10 @@ export default function TelaGrupo() {
   const [visao, setVisao] = useState<Visao>('lista');
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [exportando, setExportando] = useState(false);
+  const [filtros, setFiltros] = useState<Filtros>(SEM_FILTRO);
+  const busca = useBusca(id, filtros);
+  const todosGastos = useTodosGastos(id, aba === 'resumo');
+  const pendentes = usePendentes(id);
 
   const atualizar = useCallback(() => invalidar(id), [invalidar, id]);
   useAtualizarAoFocar(atualizar);
@@ -99,6 +116,7 @@ export default function TelaGrupo() {
   }
 
   const g = grupo.data;
+  const filtrando = temFiltro(filtros);
   const listaPendencias = pendencias.data ?? [];
   const listaGastos = gastos.data?.pages.flat() ?? [];
   const nome = (u: string) => (u === eu ? 'Você' : (nomes.get(u) ?? 'Alguém'));
@@ -198,6 +216,7 @@ export default function TelaGrupo() {
           opcoes={[
             ['dividas', 'Dívidas'],
             ['gastos', `Gastos (${totalGastos.data ?? listaGastos.length})`],
+            ['resumo', 'Resumo'],
             ['historico', 'Histórico'],
           ]}
           valor={aba}
@@ -253,14 +272,23 @@ export default function TelaGrupo() {
 
         {aba === 'gastos' ? (
           <>
-            <ListaDeRecorrentes recorrentes={recorrentes.data ?? []} aoParar={parar} />
-            {gastos.isPending ? (
+            <ContasSemValor
+              pendentes={pendentes.data ?? []}
+              eu={eu}
+              nome={nome}
+              aoPreencher={(p) => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id, pendente: p.id } })}
+            />
+            <FiltrosDeGastos filtros={filtros} membros={membros.data} nome={nome} aoMudar={setFiltros} />
+            {!filtrando ? <ListaDeRecorrentes recorrentes={recorrentes.data ?? []} aoParar={parar} /> : null}
+            {(filtrando ? busca.isPending : gastos.isPending) ? (
               <Esqueleto comResumo={false} />
+            ) : filtrando && (busca.data ?? []).length === 0 ? (
+              <Vazio titulo="Nenhum gasto encontrado" texto="Tente outra palavra ou tire algum filtro." />
             ) : (
               <ListaDeGastos
-                gastos={listaGastos}
+                gastos={filtrando ? (busca.data ?? []) : listaGastos}
                 pendencias={listaPendencias}
-                total={totalGastos.data ?? listaGastos.length}
+                total={filtrando ? (busca.data ?? []).length : (totalGastos.data ?? listaGastos.length)}
                 eu={eu}
                 nome={nome}
                 carregandoMais={gastos.isFetchingNextPage}
@@ -279,6 +307,14 @@ export default function TelaGrupo() {
               />
             ) : null}
           </>
+        ) : null}
+
+        {aba === 'resumo' ? (
+          todosGastos.data ? (
+            <AbaResumo gastos={todosGastos.data} eu={eu} nome={nome} />
+          ) : (
+            <Esqueleto comResumo={false} />
+          )
         ) : null}
 
         {aba === 'historico' ? <Historico registros={historico.data ?? []} nome={nome} /> : null}

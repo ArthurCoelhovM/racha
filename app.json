@@ -52,6 +52,13 @@
         {
           "color": "#5B4CF0"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Super Organizador usa suas fotos para anexar o comprovante de um gasto.",
+          "cameraPermission": "O Super Organizador usa a câmera para fotografar o comprovante de um gasto."
+        }
       ]
     ],
     "experiments": {
