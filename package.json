@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/ui": "~58.0.20",
     "@supabase/supabase-js": "^2.118.0",
+    "@tanstack/react-query": "^5.107.1",
     "decimal.js": "^10.6.0",
     "expo": "~58.0.13",
     "expo-camera": "~58.0.10",
@@ -51,7 +52,8 @@
     "lint": "expo lint",
     "tipos": "tsc --noEmit",
     "testes": "tsx --test testes/*.test.ts",
-    "testes:banco": "./supabase/testes/rodar.sh"
+    "testes:banco": "./supabase/testes/rodar.sh",
+    "tipos:banco": "./scripts/gerar-tipos.sh"
   },
   "private": true
 }

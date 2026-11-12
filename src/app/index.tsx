@@ -5,22 +5,21 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { DicaInstalar } from '@/components/dica-instalar';
 import { Aviso, Botao, BotaoFlutuante, Carregando, Linha, Tela, Texto, Vazio } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
-import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { contarAvisosNaoLidos, lancarMeusRecorrentes, listarMeusGrupos } from '@/lib/api';
+import { textoDoErro, useAtualizarAoFocar, useInicio, usePuxar } from '@/lib/consultas';
 import { dec, Decimal, ehZero, reaisCobrar } from '@/lib/dinheiro';
 import { pegarCodigoPendente } from '@/lib/sessao';
 import type { ResumoGrupo } from '@/lib/tipos';
 
-async function carregarInicio() {
-  await lancarMeusRecorrentes();
-  const [grupos, naoLidos] = await Promise.all([listarMeusGrupos(), contarAvisosNaoLidos().catch(() => 0)]);
-  return { grupos, naoLidos };
-}
-
 export default function Grupos() {
   const tema = useTema();
-  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(carregarInicio);
+  const consulta = useInicio();
+  const dados = consulta.data;
+  const erro = textoDoErro(consulta.error);
+  const carregando = consulta.isPending && !erro;
+  const recarregar = consulta.refetch;
+  const { puxando: atualizando, puxar } = usePuxar(recarregar);
+  useAtualizarAoFocar(recarregar);
 
   useEffect(() => {
     const codigo = pegarCodigoPendente();
@@ -34,7 +33,7 @@ export default function Grupos() {
 
   return (
     <Tela
-      aoAtualizar={recarregar}
+      aoAtualizar={puxar}
       atualizando={atualizando}
       sobreposto={<BotaoFlutuante titulo="+ Grupo" aoPressionar={() => router.push('/grupo/novo')} />}>
       <Stack.Screen
@@ -69,7 +68,7 @@ export default function Grupos() {
       />
 
       {carregando ? <Carregando /> : null}
-      {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}
+      {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={() => recarregar()} /> : null}
 
       <DicaInstalar />
 

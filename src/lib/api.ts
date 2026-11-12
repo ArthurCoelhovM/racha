@@ -2,6 +2,7 @@ import type { Nota } from './cupom';
 import type { Decimal } from './dinheiro';
 import type { Parte, Pagador } from './divisao';
 import { lerPendencias, type Pendencia, type PendenciaBanco } from './saldos';
+import type { Json } from './banco';
 import { supabase } from './supabase';
 import type {
   Aviso,
@@ -30,13 +31,39 @@ export function mensagemDeErro(erro: unknown): string {
   return texto;
 }
 
-function checar<T>(resposta: { data: T; error: unknown }): T {
+function checar<T>(resposta: { data: T; error: unknown }): NonNullable<T> {
+  if (resposta.error) throw new Error(mensagemDeErro(resposta.error));
+  if (resposta.data === null || resposta.data === undefined) throw new Error('O servidor não devolveu nada.');
+  return resposta.data;
+}
+
+// para funções que não devolvem nada (ou podem devolver vazio)
+function semErro<T>(resposta: { data: T; error: unknown }): T {
   if (resposta.error) throw new Error(mensagemDeErro(resposta.error));
   return resposta.data;
 }
 
+// valores em numeric vão como texto para o banco, sem passar por float e sem perder casas
+function numerico(valor: Decimal): number {
+  return valor.toString() as unknown as number;
+}
+
+// o banco guarda tipo, papel e frequência como texto com check; aqui eles voltam a ser os tipos do app
+type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas'> & { divisoes_permitidas: string[] };
+function paraGrupo(g: LinhaGrupo): Grupo {
+  return { ...g, divisoes_permitidas: g.divisoes_permitidas as TipoDivisao[] };
+}
+
+// prettier-ignore
+const CAMPOS_GASTO = 'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, pagadores:gasto_pagadores(usuario_id, valor::text), divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)';
+
+type LinhaGasto = Omit<Gasto, 'tipo_divisao' | 'itens'> & { tipo_divisao: string; itens: Json | null };
+function paraGasto(g: LinhaGasto): Gasto {
+  return { ...g, tipo_divisao: g.tipo_divisao as TipoDivisao, itens: g.itens as Item[] | null };
+}
+
 export async function listarMeusGrupos(): Promise<ResumoGrupo[]> {
-  return checar(await supabase.rpc('resumo_meus_grupos')) as ResumoGrupo[];
+  return checar(await supabase.rpc('resumo_meus_grupos'));
 }
 
 export const NAO_PARTICIPA = 'Você não participa mais deste grupo, ou ele não existe.';
@@ -47,9 +74,15 @@ export function ehForaDoGrupo(erro: string | null): boolean {
 }
 
 export async function buscarGrupo(id: string): Promise<Grupo> {
-  const grupo = checar(await supabase.from('grupos').select('*').eq('id', id).maybeSingle()) as Grupo | null;
+  const grupo = semErro(
+    await supabase
+      .from('grupos')
+      .select('id, nome, cor, abatimento, divisoes_permitidas, lembrete_dias, codigo_convite, criado_por')
+      .eq('id', id)
+      .maybeSingle(),
+  );
   if (!grupo) throw new Error(NAO_PARTICIPA);
-  return grupo;
+  return paraGrupo(grupo);
 }
 
 export async function listarMembros(grupoId: string): Promise<Membro[]> {
@@ -59,24 +92,40 @@ export async function listarMembros(grupoId: string): Promise<Membro[]> {
       .select('usuario_id, papel, ativo, perfil:perfis(id, nome)')
       .eq('grupo_id', grupoId)
       .order('entrou_em'),
-  ) as unknown as Membro[];
-  return dados.map((m) => ({ ...m, perfil: m.perfil ?? { id: m.usuario_id, nome: 'Alguém' } }));
+  );
+  return dados.map((m) => ({
+    usuario_id: m.usuario_id,
+    papel: m.papel as Membro['papel'],
+    ativo: m.ativo,
+    perfil: m.perfil ?? { id: m.usuario_id, nome: 'Alguém' },
+  }));
 }
 
 // sem limite traz todos (para o CSV); a tela do grupo pede de 30 em 30
 export async function listarGastos(grupoId: string, limite?: number): Promise<Gasto[]> {
   let consulta = supabase
     .from('gastos')
-    .select(
-      'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, ' +
-        'pagadores:gasto_pagadores(usuario_id, valor::text), ' +
-        'divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)',
-    )
+    .select(CAMPOS_GASTO)
     .eq('grupo_id', grupoId)
     .order('data', { ascending: false })
     .order('criado_em', { ascending: false });
   if (limite) consulta = consulta.limit(limite);
-  return checar(await consulta) as unknown as Gasto[];
+  return checar(await consulta).map((g) => paraGasto(g as LinhaGasto));
+}
+
+// uma página de gastos, a partir de uma posição (a tela do grupo pede de 30 em 30)
+export async function paginaDeGastos(grupoId: string, inicio: number, quantos: number): Promise<Gasto[]> {
+  const linhas = checar(
+    await supabase
+      .from('gastos')
+      .select(CAMPOS_GASTO)
+      .eq('grupo_id', grupoId)
+      .order('data', { ascending: false })
+      .order('criado_em', { ascending: false })
+      .order('id')
+      .range(inicio, inicio + quantos - 1),
+  );
+  return linhas.map((g) => paraGasto(g as LinhaGasto));
 }
 
 export async function contarGastos(grupoId: string): Promise<number> {
@@ -95,22 +144,13 @@ export async function listarPendencias(grupoId: string, abatimento?: boolean): P
       p_grupo: grupoId,
       ...(abatimento === undefined ? {} : { p_abatimento: abatimento }),
     }),
-  ) as PendenciaBanco[];
-  return lerPendencias(linhas);
+  );
+  return lerPendencias(linhas as PendenciaBanco[]);
 }
 
 export async function buscarGasto(id: string): Promise<Gasto> {
-  return checar(
-    await supabase
-      .from('gastos')
-      .select(
-        'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, ' +
-          'pagadores:gasto_pagadores(usuario_id, valor::text), ' +
-          'divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)',
-      )
-      .eq('id', id)
-      .single(),
-  ) as unknown as Gasto;
+  const linha = checar(await supabase.from('gastos').select(CAMPOS_GASTO).eq('id', id).single());
+  return paraGasto(linha as LinhaGasto);
 }
 
 export async function listarHistorico(grupoId: string): Promise<RegistroHistorico[]> {
@@ -141,11 +181,11 @@ export async function criarGrupo(g: NovoGrupo): Promise<string> {
       p_divisoes: g.divisoes,
       p_lembrete_dias: g.lembreteDias,
     }),
-  ) as string;
+  );
 }
 
 export async function atualizarGrupo(id: string, g: NovoGrupo): Promise<void> {
-  checar(
+  semErro(
     await supabase
       .from('grupos')
       .update({
@@ -160,7 +200,7 @@ export async function atualizarGrupo(id: string, g: NovoGrupo): Promise<void> {
 }
 
 export async function entrarNoGrupo(codigo: string): Promise<string> {
-  const grupo = checar(await supabase.rpc('entrar_no_grupo', { p_codigo: codigo })) as string | null;
+  const grupo = semErro(await supabase.rpc('entrar_no_grupo', { p_codigo: codigo }));
   if (!grupo) throw new Error('Código de convite não encontrado. Confira as letras e os números.');
   return grupo;
 }
@@ -170,17 +210,17 @@ export async function registrarDispositivo(
   identificador: string,
   assinatura: unknown = null,
 ): Promise<void> {
-  checar(
+  semErro(
     await supabase.rpc('registrar_dispositivo', {
       p_plataforma: plataforma,
       p_identificador: identificador,
-      p_assinatura: assinatura,
+      p_assinatura: assinatura as Json,
     }),
   );
 }
 
 export async function removerDispositivo(identificador: string): Promise<void> {
-  checar(await supabase.rpc('remover_dispositivo', { p_identificador: identificador }));
+  semErro(await supabase.rpc('remover_dispositivo', { p_identificador: identificador }));
 }
 
 export async function excluirMinhaConta(): Promise<void> {
@@ -190,11 +230,11 @@ export async function excluirMinhaConta(): Promise<void> {
 }
 
 export async function sairDoGrupo(grupoId: string): Promise<void> {
-  checar(await supabase.rpc('sair_do_grupo', { p_grupo: grupoId }));
+  semErro(await supabase.rpc('sair_do_grupo', { p_grupo: grupoId }));
 }
 
 export async function novoCodigoConvite(grupoId: string): Promise<string> {
-  return checar(await supabase.rpc('novo_codigo_convite', { p_grupo: grupoId })) as string;
+  return checar(await supabase.rpc('novo_codigo_convite', { p_grupo: grupoId }));
 }
 
 export type GastoParaSalvar = {
@@ -209,7 +249,7 @@ export type GastoParaSalvar = {
   partes: Parte[];
 };
 
-function montarPayload(g: GastoParaSalvar) {
+function montarPayload(g: GastoParaSalvar): Json {
   return {
     id: g.id ?? null,
     grupo_id: g.grupoId,
@@ -217,14 +257,14 @@ function montarPayload(g: GastoParaSalvar) {
     valor_total: g.total.toFixed(2),
     data: g.data,
     tipo_divisao: g.tipo,
-    itens: g.itens,
+    itens: g.itens as Json,
     pagadores: g.pagadores.map((p) => ({ usuario_id: p.usuario_id, valor: p.valor.toFixed(2) })),
     divisoes: g.partes.map((p) => ({ usuario_id: p.usuario_id, parametro: p.parametro, valor: p.valor.toString() })),
   };
 }
 
 export async function salvarGasto(g: GastoParaSalvar): Promise<string> {
-  return checar(await supabase.rpc('salvar_gasto', { p: montarPayload(g) })) as string;
+  return checar(await supabase.rpc('salvar_gasto', { p: montarPayload(g) }));
 }
 
 export async function criarRecorrente(
@@ -238,16 +278,16 @@ export async function criarRecorrente(
       p_frequencia: frequencia,
       p_gasto: primeiroGastoId,
     }),
-  ) as string;
+  );
 }
 
 export async function pararRecorrente(id: string): Promise<void> {
-  checar(await supabase.rpc('parar_recorrente', { p_id: id }));
+  semErro(await supabase.rpc('parar_recorrente', { p_id: id }));
 }
 
 export async function lancarMeusRecorrentes(): Promise<number> {
   try {
-    return (checar(await supabase.rpc('lancar_meus_recorrentes')) as number) ?? 0;
+    return semErro(await supabase.rpc('lancar_meus_recorrentes')) ?? 0;
   } catch {
     return 0;
   }
@@ -261,7 +301,7 @@ export async function listarRecorrentes(grupoId: string): Promise<Recorrente[]> 
       .eq('grupo_id', grupoId)
       .eq('ativo', true)
       .order('proxima_data'),
-  ) as unknown as Recorrente[];
+  ) as (Omit<Recorrente, 'frequencia'> & { frequencia: string })[] as Recorrente[];
 }
 
 export async function listarAvisos(): Promise<Aviso[]> {
@@ -271,7 +311,7 @@ export async function listarAvisos(): Promise<Aviso[]> {
       .select('id, grupo_id, tipo, titulo, corpo, dados, lido, criado_em')
       .order('criado_em', { ascending: false })
       .limit(60),
-  ) as Aviso[];
+  ) as (Omit<Aviso, 'tipo' | 'dados'> & { tipo: string; dados: Json | null })[] as Aviso[];
 }
 
 export async function contarAvisosNaoLidos(): Promise<number> {
@@ -281,11 +321,11 @@ export async function contarAvisosNaoLidos(): Promise<number> {
 }
 
 export async function marcarAvisosLidos(): Promise<void> {
-  checar(await supabase.from('avisos').update({ lido: true }).eq('lido', false));
+  semErro(await supabase.from('avisos').update({ lido: true }).eq('lido', false));
 }
 
 export async function excluirGasto(id: string): Promise<void> {
-  checar(await supabase.rpc('excluir_gasto', { p_id: id }));
+  semErro(await supabase.rpc('excluir_gasto', { p_id: id }));
 }
 
 export async function marcarPago(
@@ -300,26 +340,23 @@ export async function marcarPago(
       p_grupo: grupoId,
       p_de: de,
       p_para: para,
-      p_valor: valor.toString(),
-      p_gasto: gastoId,
+      p_valor: numerico(valor),
+      p_gasto: gastoId ?? undefined,
     }),
-  ) as string;
+  );
 }
 
 export async function desfazerPagamento(id: string): Promise<void> {
-  checar(await supabase.from('pagamentos').delete().eq('id', id));
+  semErro(await supabase.from('pagamentos').delete().eq('id', id));
 }
 
 export async function atualizarMeuNome(id: string, nome: string): Promise<void> {
-  checar(await supabase.from('perfis').update({ nome }).eq('id', id));
+  semErro(await supabase.from('perfis').update({ nome }).eq('id', id));
 }
 
 // o e-mail vem da sessão; no banco cada pessoa só lê id e nome
 export async function buscarMeuPerfil(id: string) {
-  return checar(await supabase.from('perfis').select('id, nome').eq('id', id).single()) as {
-    id: string;
-    nome: string;
-  };
+  return checar(await supabase.from('perfis').select('id, nome').eq('id', id).single());
 }
 
 export async function lerNotaFiscal(url: string): Promise<Nota> {

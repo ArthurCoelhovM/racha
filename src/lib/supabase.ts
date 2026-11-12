@@ -3,12 +3,14 @@ import './armazenamento';
 import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
+import type { Database } from './banco';
+
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const chave = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
 
 export const supabaseConfigurado = url.length > 0 && chave.length > 0;
 
-export const supabase = createClient(url || 'http://localhost:54321', chave || 'chave-ausente', {
+export const supabase = createClient<Database>(url || 'http://localhost:54321', chave || 'chave-ausente', {
   auth: {
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
     autoRefreshToken: true,

@@ -1,4 +1,13 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { QueryClientProvider } from '@tanstack/react-query';
+import {
+  DarkTheme,
+  DefaultTheme,
+  router,
+  Stack,
+  ThemeProvider,
+  usePathname,
+  type ErrorBoundaryProps,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -6,17 +15,48 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Marca } from '@/components/marca';
-import { Texto } from '@/components/ui';
+import { Botao, Texto } from '@/components/ui';
 import { useEscuro, useTema } from '@/hooks/use-tema';
 import { useToqueNotificacao } from '@/hooks/use-toque-notificacao';
+import { clienteConsultas } from '@/lib/consultas';
+import { definirTelaAtual, instalarCapturaDeErros, registrarErro } from '@/lib/erros';
 import { ProvedorSessao, useSessao } from '@/lib/sessao';
 import { supabaseConfigurado } from '@/lib/supabase';
 
 SplashScreen.preventAutoHideAsync();
+instalarCapturaDeErros();
+
+// erro inesperado numa tela: mostra uma saída em vez da tela em branco e registra no banco
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const tema = useTema();
+  useEffect(() => {
+    registrarErro(error);
+    SplashScreen.hideAsync();
+  }, [error]);
+  return (
+    <View style={{ flex: 1, backgroundColor: tema.fundo, padding: 24, justifyContent: 'center', gap: 12 }}>
+      <Marca tamanho={28} />
+      <Texto variante="subtitulo">Algo deu errado nesta tela</Texto>
+      <Texto variante="suave">O erro foi registrado para ser corrigido. Tente de novo ou volte para o início.</Texto>
+      <Botao titulo="Tentar de novo" aoPressionar={retry} />
+      <Botao titulo="Ir para o início" variante="secundario" aoPressionar={() => retry().then(() => router.replace('/'))} />
+    </View>
+  );
+}
 
 function Navegacao() {
   const { sessao, carregando } = useSessao();
   const tema = useTema();
+  const caminho = usePathname();
+
+  useEffect(() => {
+    definirTelaAtual(caminho);
+  }, [caminho]);
+
+  // ao sair da conta, nada da pessoa anterior fica no cache
+  useEffect(() => {
+    if (!sessao) clienteConsultas.clear();
+  }, [sessao]);
 
   useEffect(() => {
     if (!carregando) SplashScreen.hideAsync();
@@ -103,9 +143,11 @@ export default function Raiz() {
       <ThemeProvider value={temaNavegacao}>
         <StatusBar style={escuro ? 'light' : 'dark'} />
         {supabaseConfigurado ? (
-          <ProvedorSessao>
-            <Navegacao />
-          </ProvedorSessao>
+          <QueryClientProvider client={clienteConsultas}>
+            <ProvedorSessao>
+              <Navegacao />
+            </ProvedorSessao>
+          </QueryClientProvider>
         ) : (
           <FaltaConfigurar />
         )}

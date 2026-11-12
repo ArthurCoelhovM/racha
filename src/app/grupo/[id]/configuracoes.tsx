@@ -5,16 +5,20 @@ import { View } from 'react-native';
 import { FormularioGrupo } from '@/components/formulario-grupo';
 import { Aviso, Botao, Carregando, Linha, Separador, Tela, Texto } from '@/components/ui';
 import { espaco } from '@/constants/tema';
-import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { atualizarGrupo, buscarGrupo, listarPendencias, mensagemDeErro, sairDoGrupo } from '@/lib/api';
+import { atualizarGrupo, listarPendencias, mensagemDeErro, sairDoGrupo } from '@/lib/api';
+import { textoDoErro, useGrupo, useInvalidarGrupo } from '@/lib/consultas';
 import { reais } from '@/lib/dinheiro';
 import { resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
 
 export default function Configuracoes() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { dados: grupo, erro, carregando } = useCarregar(() => buscarGrupo(id), id);
+  const consulta = useGrupo(id);
+  const grupo = consulta.data;
+  const erro = textoDoErro(consulta.error);
+  const carregando = consulta.isPending && !erro;
+  const invalidar = useInvalidarGrupo();
   const [erroSair, setErroSair] = useState<string | null>(null);
 
   async function sair() {
@@ -44,6 +48,7 @@ export default function Configuracoes() {
           previaAbatimento={(novo) => <PreviaAbatimento grupoId={id} novo={novo} />}
           aoSalvar={async (g) => {
             await atualizarGrupo(id, g);
+            await invalidar(id);
             router.back();
           }}
         />

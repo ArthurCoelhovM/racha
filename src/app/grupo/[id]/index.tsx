@@ -1,133 +1,123 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable } from 'react-native';
 
-import {
-  Aviso,
-  Avatar,
-  Botao,
-  BotaoFlutuante,
-  Carregando,
-  Cartao,
-  CoresDoGrupo,
-  Linha,
-  Separador,
-  Tela,
-  Texto,
-  Vazio,
-} from '@/components/ui';
-import { espaco, raio } from '@/constants/tema';
-import { useCarregar } from '@/hooks/use-carregar';
+import { Abas } from '@/components/grupo/abas';
+import { Historico } from '@/components/grupo/historico';
+import { ListaDeDividas } from '@/components/grupo/lista-de-dividas';
+import { ListaDeGastos, ListaDeRecorrentes } from '@/components/grupo/lista-de-gastos';
+import { ResumoDoGrupo } from '@/components/grupo/resumo-do-grupo';
+import { SaldosPorPessoa } from '@/components/grupo/saldos-por-pessoa';
+import { Aviso, Botao, BotaoFlutuante, Carregando, CoresDoGrupo, Linha, Tela, Texto, Vazio } from '@/components/ui';
 import { useTema } from '@/hooks/use-tema';
+import { ehForaDoGrupo, listarGastos, mensagemDeErro, pararRecorrente } from '@/lib/api';
 import {
-  buscarGrupo,
-  contarGastos,
-  desfazerPagamento,
-  lancarMeusRecorrentes,
-  listarGastos,
-  listarHistorico,
-  listarMembros,
-  listarPendencias,
-  listarRecorrentes,
-  marcarPago,
-  mensagemDeErro,
-  ehForaDoGrupo,
-  pararRecorrente,
-} from '@/lib/api';
+  textoDoErro,
+  useAtualizarAoFocar,
+  useDesfazerPagamento,
+  useGastos,
+  useGrupo,
+  useHistorico,
+  useInvalidarGrupo,
+  useMarcarPago,
+  useMembros,
+  usePendencias,
+  useRecorrentes,
+  useTotalGastos,
+  usePuxar,
+} from '@/lib/consultas';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
-import { dec, Decimal, ehExato, ehZero, reais, reaisCobrar, reaisExato } from '@/lib/dinheiro';
-import { diaCurto, isoParaBr, momento } from '@/lib/formatos';
-import { resumoDoUsuario, saldoDaPessoa, type Pendencia } from '@/lib/saldos';
+import { reais } from '@/lib/dinheiro';
+import { resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
-import type { Gasto, Membro, Recorrente, RegistroHistorico } from '@/lib/tipos';
+import type { Recorrente } from '@/lib/tipos';
 
 type Aba = 'dividas' | 'gastos' | 'historico';
 type Visao = 'lista' | 'pessoas' | 'grafico';
-
-const POR_PAGINA = 30;
-
-async function carregarTudo(id: string, limite: number) {
-  await lancarMeusRecorrentes();
-  const [grupo, membros, pendencias, gastos, totalGastos, historico, recorrentes] = await Promise.all([
-    buscarGrupo(id),
-    listarMembros(id),
-    listarPendencias(id),
-    listarGastos(id, limite),
-    contarGastos(id),
-    listarHistorico(id),
-    listarRecorrentes(id),
-  ]);
-  return { grupo, membros, pendencias, gastos, totalGastos, historico, recorrentes };
-}
+type Mensagem = { texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string };
 
 export default function TelaGrupo() {
   const tema = useTema();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { usuarioId } = useSessao();
   const eu = usuarioId ?? '';
-  const [limite, setLimite] = useState(POR_PAGINA);
-  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(
-    () => carregarTudo(id, limite),
-    `${id}|${limite}`,
-  );
+
+  const grupo = useGrupo(id);
+  const membros = useMembros(id);
+  const pendencias = usePendencias(id);
+  const gastos = useGastos(id);
+  const totalGastos = useTotalGastos(id);
+  const historico = useHistorico(id);
+  const recorrentes = useRecorrentes(id);
+  const invalidar = useInvalidarGrupo();
+  const marcarPago = useMarcarPago(id);
+  const desfazerPagamento = useDesfazerPagamento(id);
+
   const [aba, setAba] = useState<Aba>('dividas');
   const [visao, setVisao] = useState<Visao>('lista');
-  const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string } | null>(null);
-  const [marcando, setMarcando] = useState<string | null>(null);
+  const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [exportando, setExportando] = useState(false);
+
+  const atualizar = useCallback(() => invalidar(id), [invalidar, id]);
+  useAtualizarAoFocar(atualizar);
+  const { puxando, puxar } = usePuxar(atualizar);
 
   const nomes = useMemo(() => {
     const mapa = new Map<string, string>();
-    for (const m of dados?.membros ?? []) mapa.set(m.usuario_id, m.perfil.nome || 'Alguém');
+    for (const m of membros.data ?? []) mapa.set(m.usuario_id, m.perfil.nome || 'Alguém');
     return mapa;
-  }, [dados?.membros]);
+  }, [membros.data]);
 
-  if (carregando) return <Carregando />;
-  if (!dados) {
+  const erroDoGrupo = textoDoErro(grupo.error ?? membros.error);
+  if (grupo.isPending || membros.isPending) {
+    if (!erroDoGrupo) return <Carregando />;
+  }
+  if (!grupo.data || !membros.data) {
     return (
       <Tela>
         <Stack.Screen options={{ title: 'Grupo' }} />
-        {ehForaDoGrupo(erro) ? (
+        {ehForaDoGrupo(erroDoGrupo) ? (
           <>
-            <Vazio
-              titulo="Você não está mais neste grupo"
-              texto="Ele saiu da sua lista. Peça um convite novo para voltar."
-            />
+            <Vazio titulo="Você não está mais neste grupo" texto="Ele saiu da sua lista. Peça um convite novo para voltar." />
             <Botao titulo="Ver meus grupos" aoPressionar={() => router.dismissTo('/')} />
           </>
-        ) : erro ? (
-          <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} />
+        ) : erroDoGrupo ? (
+          <Aviso texto={erroDoGrupo} acao="Tentar de novo" aoAcionar={atualizar} />
         ) : null}
       </Tela>
     );
   }
 
-  const { grupo, membros, pendencias, gastos, totalGastos, historico, recorrentes } = dados;
+  const g = grupo.data;
+  const listaPendencias = pendencias.data ?? [];
+  const listaGastos = gastos.data?.pages.flat() ?? [];
   const nome = (u: string) => (u === eu ? 'Você' : (nomes.get(u) ?? 'Alguém'));
-  const { voceDeve, teDevem } = resumoDoUsuario(pendencias, eu);
+  const { voceDeve, teDevem } = resumoDoUsuario(listaPendencias, eu);
+  const erroDasListas = textoDoErro(pendencias.error ?? gastos.error ?? historico.error ?? recorrentes.error);
 
-  async function pagar(p: Pendencia) {
-    setMarcando(p.chave);
-    setAviso(null);
-    try {
-      const pagamentoId = await marcarPago(grupo.id, p.devedor, p.credor, p.valor, p.gasto_id);
-      setAviso({ texto: `Pagamento de ${reais(p.cobrar)} marcado.`, tipo: 'ok', pagamentoId });
-      recarregar();
-    } catch (e) {
-      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
-      recarregar();
-    } finally {
-      setMarcando(null);
-    }
+  function pagar(p: Pendencia) {
+    setMensagem(null);
+    marcarPago.mutate(p, {
+      onSuccess: (pagamentoId) =>
+        setMensagem({ texto: `Pagamento de ${reais(p.cobrar)} marcado.`, tipo: 'ok', pagamentoId }),
+      onError: (e) => setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' }),
+    });
+  }
+
+  function desfazer(pagamentoId: string) {
+    desfazerPagamento.mutate(pagamentoId, {
+      onSuccess: () => setMensagem({ texto: 'Pagamento desfeito.', tipo: 'ok' }),
+      onError: (e) => setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' }),
+    });
   }
 
   async function exportar() {
     setExportando(true);
     try {
-      const todos = await listarGastos(grupo.id);
-      await exportarCsv(`${grupo.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`, gastosEmCsv(todos, nomes));
+      const todos = await listarGastos(g.id);
+      await exportarCsv(`${g.nome.replace(/[^\w-]+/g, '-').toLowerCase()}-gastos.csv`, gastosEmCsv(todos, nomes));
     } catch (e) {
-      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+      setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' });
     } finally {
       setExportando(false);
     }
@@ -136,49 +126,39 @@ export default function TelaGrupo() {
   async function parar(r: Recorrente) {
     try {
       await pararRecorrente(r.id);
-      setAviso({ texto: `"${r.descricao}" não vai mais se repetir.`, tipo: 'ok' });
-      recarregar();
+      setMensagem({ texto: `"${r.descricao}" não vai mais se repetir.`, tipo: 'ok' });
+      atualizar();
     } catch (e) {
-      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
-    }
-  }
-
-  async function desfazer(pagamentoId: string) {
-    try {
-      await desfazerPagamento(pagamentoId);
-      setAviso({ texto: 'Pagamento desfeito.', tipo: 'ok' });
-      recarregar();
-    } catch (e) {
-      setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
+      setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' });
     }
   }
 
   return (
-    <CoresDoGrupo membros={membros}>
+    <CoresDoGrupo membros={membros.data}>
       <Tela
-        aoAtualizar={recarregar}
-        atualizando={atualizando}
+        aoAtualizar={puxar}
+        atualizando={puxando}
         sobreposto={
           <BotaoFlutuante
             titulo="+ Gasto"
-            aoPressionar={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id } })}
+            aoPressionar={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id } })}
           />
         }>
         <Stack.Screen
           options={{
-            title: grupo.nome,
+            title: g.nome,
             headerRight: () => (
               <Linha style={{ gap: 16, paddingHorizontal: 8 }}>
                 <Pressable
                   hitSlop={10}
-                  onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: grupo.id } })}>
+                  onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: g.id } })}>
                   <Texto variante="forte" cor={tema.primaria}>
                     Convidar
                   </Texto>
                 </Pressable>
                 <Pressable
                   hitSlop={10}
-                  onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: grupo.id } })}>
+                  onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: g.id } })}>
                   <Texto variante="forte" cor={tema.primaria}>
                     Ajustes
                   </Texto>
@@ -188,69 +168,27 @@ export default function TelaGrupo() {
           }}
         />
 
-        <View style={[estilos.resumo, { backgroundColor: tema.superficie, borderColor: tema.borda }]}>
-          <View style={[estilos.faixa, { backgroundColor: grupo.cor }]} />
-          <View style={{ flex: 1, padding: espaco.g, gap: espaco.m }}>
-            {ehZero(voceDeve) && ehZero(teDevem) ? (
-              <Texto variante="titulo">Tudo certo por aqui</Texto>
-            ) : (
-              <Linha style={{ gap: espaco.xg, flexWrap: 'wrap' }}>
-                {!ehZero(voceDeve) ? (
-                  <View>
-                    <Texto variante="rotulo" cor={tema.negativo}>
-                      Você deve
-                    </Texto>
-                    <Texto variante="grande" cor={tema.negativo}>
-                      {reais(voceDeve)}
-                    </Texto>
-                  </View>
-                ) : null}
-                {!ehZero(teDevem) ? (
-                  <View>
-                    <Texto variante="rotulo" cor={tema.positivo}>
-                      Te devem
-                    </Texto>
-                    <Texto variante="grande" cor={tema.positivo}>
-                      {reais(teDevem)}
-                    </Texto>
-                  </View>
-                ) : null}
-              </Linha>
-            )}
-            <Texto variante="suave">
-              {grupo.abatimento
-                ? 'Com abatimento: dívidas entre duas pessoas se compensam.'
-                : 'Sem abatimento: cada gasto é cobrado separado.'}
-            </Texto>
-            <Linha style={{ gap: 6, flexWrap: 'wrap' }}>
-              {membros
-                .filter((m) => m.ativo)
-                .map((m) => (
-                  <Avatar key={m.usuario_id} id={m.usuario_id} nome={m.perfil.nome} tamanho={28} />
-                ))}
-            </Linha>
-          </View>
-        </View>
+        <ResumoDoGrupo grupo={g} membros={membros.data} voceDeve={voceDeve} teDevem={teDevem} />
 
         <Abas
           opcoes={[
             ['dividas', 'Dívidas'],
-            ['gastos', `Gastos (${totalGastos})`],
+            ['gastos', `Gastos (${totalGastos.data ?? listaGastos.length})`],
             ['historico', 'Histórico'],
           ]}
           valor={aba}
-          aoMudar={(v) => setAba(v as Aba)}
+          aoMudar={setAba}
         />
 
-        {aviso ? (
+        {mensagem ? (
           <Aviso
-            texto={aviso.texto}
-            tipo={aviso.tipo}
-            acao={aviso.pagamentoId ? 'Desfazer' : undefined}
-            aoAcionar={aviso.pagamentoId ? () => desfazer(aviso.pagamentoId!) : undefined}
+            texto={mensagem.texto}
+            tipo={mensagem.tipo}
+            acao={mensagem.pagamentoId ? 'Desfazer' : undefined}
+            aoAcionar={mensagem.pagamentoId ? () => desfazer(mensagem.pagamentoId!) : undefined}
           />
         ) : null}
-        {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}
+        {erroDasListas ? <Aviso texto={erroDasListas} acao="Tentar de novo" aoAcionar={atualizar} /> : null}
 
         {aba === 'dividas' ? (
           <>
@@ -262,385 +200,57 @@ export default function TelaGrupo() {
                 ['grafico', 'Gráfico'],
               ]}
               valor={visao}
-              aoMudar={(v) => setVisao(v as Visao)}
+              aoMudar={setVisao}
             />
-            {pendencias.length === 0 ? (
-              <Vazio titulo="Ninguém deve nada" texto="Quando alguém registrar um gasto, as dívidas aparecem aqui." />
+            {pendencias.isPending ? (
+              <Carregando />
             ) : visao === 'lista' ? (
-              <Cartao style={{ padding: 0, gap: 0 }}>
-                {pendencias.map((p, i) => (
-                  <View key={p.chave}>
-                    {i > 0 ? <Separador /> : null}
-                    <LinhaPendencia
-                      p={p}
-                      nome={nome}
-                      euParticipo={p.devedor === eu || p.credor === eu}
-                      carregando={marcando === p.chave}
-                      aoPagar={() => pagar(p)}
-                    />
-                  </View>
-                ))}
-              </Cartao>
+              <ListaDeDividas
+                pendencias={listaPendencias}
+                eu={eu}
+                nome={nome}
+                marcando={marcarPago.isPending ? (marcarPago.variables?.chave ?? null) : null}
+                aoPagar={pagar}
+              />
+            ) : listaPendencias.length === 0 ? (
+              <Vazio titulo="Ninguém deve nada" texto="Quando alguém registrar um gasto, as dívidas aparecem aqui." />
             ) : (
-              <SaldosPorPessoa membros={membros} pendencias={pendencias} nome={nome} grafico={visao === 'grafico'} />
+              <SaldosPorPessoa
+                membros={membros.data}
+                pendencias={listaPendencias}
+                nome={nome}
+                grafico={visao === 'grafico'}
+              />
             )}
           </>
         ) : null}
 
         {aba === 'gastos' ? (
           <>
-            {recorrentes.length > 0 ? (
-              <Cartao>
-                <Texto variante="rotulo">Repetem sozinhos</Texto>
-                {recorrentes.map((r) => (
-                  <Linha key={r.id} style={{ justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Texto variante="forte" numberOfLines={1}>
-                        {r.descricao} · {reais(dec(r.valor_total))}
-                      </Texto>
-                      <Texto variante="suave">
-                        {r.frequencia === 'mensal' ? 'Todo mês' : 'Toda semana'}, próximo em {isoParaBr(r.proxima_data)}
-                      </Texto>
-                    </View>
-                    <Botao pequeno variante="perigo" titulo="Parar" confirmar="Parar?" aoPressionar={() => parar(r)} />
-                  </Linha>
-                ))}
-              </Cartao>
-            ) : null}
-            {gastos.length === 0 ? (
-              <Vazio titulo="Nenhum gasto ainda" texto="Toque em + Gasto para registrar o primeiro." />
+            <ListaDeRecorrentes recorrentes={recorrentes.data ?? []} aoParar={parar} />
+            {gastos.isPending ? (
+              <Carregando />
             ) : (
-              <>
-                <Cartao style={{ padding: 0, gap: 0 }}>
-                  {gastos.map((g, i) => (
-                    <View key={g.id}>
-                      {i > 0 ? <Separador /> : null}
-                      <LinhaGasto
-                        g={g}
-                        eu={eu}
-                        nome={nome}
-                        aoAbrir={() =>
-                          router.push({ pathname: '/grupo/[id]/gasto', params: { id: grupo.id, gastoId: g.id } })
-                        }
-                      />
-                    </View>
-                  ))}
-                </Cartao>
-                {gastos.length < totalGastos ? (
-                  <Botao
-                    titulo={`Ver mais gastos (${totalGastos - gastos.length})`}
-                    variante="texto"
-                    carregando={atualizando}
-                    aoPressionar={() => setLimite(limite + POR_PAGINA)}
-                  />
-                ) : null}
-                <Botao
-                  titulo="Exportar gastos em CSV"
-                  variante="secundario"
-                  carregando={exportando}
-                  aoPressionar={exportar}
-                />
-              </>
+              <ListaDeGastos
+                gastos={listaGastos}
+                total={totalGastos.data ?? listaGastos.length}
+                eu={eu}
+                nome={nome}
+                carregandoMais={gastos.isFetchingNextPage}
+                aoAbrir={(gasto) =>
+                  router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id, gastoId: gasto.id } })
+                }
+                aoCarregarMais={() => gastos.fetchNextPage()}
+              />
             )}
+            {listaGastos.length > 0 ? (
+              <Botao titulo="Exportar gastos em CSV" variante="secundario" carregando={exportando} aoPressionar={exportar} />
+            ) : null}
           </>
         ) : null}
 
-        {aba === 'historico' ? <Historico registros={historico} nome={nome} /> : null}
+        {aba === 'historico' ? <Historico registros={historico.data ?? []} nome={nome} /> : null}
       </Tela>
     </CoresDoGrupo>
   );
 }
-
-function Abas({
-  opcoes,
-  valor,
-  aoMudar,
-  pequena = false,
-}: {
-  opcoes: [string, string][];
-  valor: string;
-  aoMudar: (v: string) => void;
-  pequena?: boolean;
-}) {
-  const tema = useTema();
-  return (
-    <View style={[estilos.abas, { backgroundColor: tema.superficie2 }]}>
-      {opcoes.map(([chave, rotulo]) => {
-        const ativa = chave === valor;
-        return (
-          <Pressable
-            key={chave}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: ativa }}
-            onPress={() => aoMudar(chave)}
-            style={[estilos.aba, pequena && { paddingVertical: 6 }, ativa && { backgroundColor: tema.superficie }]}>
-            <Texto
-              variante={pequena ? 'suave' : 'forte'}
-              cor={ativa ? tema.texto : tema.textoSuave}
-              style={{ fontWeight: '700' }}>
-              {rotulo}
-            </Texto>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function LinhaPendencia({
-  p,
-  nome,
-  euParticipo,
-  carregando,
-  aoPagar,
-}: {
-  p: Pendencia;
-  nome: (u: string) => string;
-  euParticipo: boolean;
-  carregando: boolean;
-  aoPagar: () => void;
-}) {
-  const exato = ehExato(p.valor);
-  return (
-    <View style={estilos.linhaLista}>
-      <Linha>
-        <Avatar id={p.devedor} nome={nome(p.devedor)} />
-        <Texto variante="suave">→</Texto>
-        <Avatar id={p.credor} nome={nome(p.credor)} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Texto variante="forte" numberOfLines={2}>
-            {nome(p.devedor)} deve a {nome(p.credor) === 'Você' ? 'você' : nome(p.credor)}
-          </Texto>
-          {p.descricao ? (
-            <Texto variante="suave" numberOfLines={1}>
-              {p.descricao}
-              {p.data ? ` · ${diaCurto(p.data)}` : ''}
-            </Texto>
-          ) : null}
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Texto variante="subtitulo">{reais(p.cobrar)}</Texto>
-          {!exato ? <Texto variante="suave">exato {reaisExato(p.valor)}</Texto> : null}
-        </View>
-      </Linha>
-      {euParticipo ? (
-        <Botao
-          pequeno
-          variante="secundario"
-          titulo={nome(p.devedor) === 'Você' ? 'Marcar que paguei' : 'Marcar que recebi'}
-          aoPressionar={aoPagar}
-          carregando={carregando}
-          style={{ alignSelf: 'flex-end' }}
-        />
-      ) : null}
-    </View>
-  );
-}
-
-function SaldosPorPessoa({
-  membros,
-  pendencias,
-  nome,
-  grafico,
-}: {
-  membros: Membro[];
-  pendencias: Pendencia[];
-  nome: (u: string) => string;
-  grafico: boolean;
-}) {
-  const tema = useTema();
-  const saldos = membros
-    .map((m) => ({
-      id: m.usuario_id,
-      nome: nome(m.usuario_id),
-      saldo: saldoDaPessoa(pendencias, m.usuario_id),
-      ativo: m.ativo,
-    }))
-    .filter((s) => s.ativo || !ehZero(s.saldo))
-    .sort((a, b) => b.saldo.comparedTo(a.saldo));
-
-  const maior = saldos.reduce((m, s) => Decimal.max(m, s.saldo.abs()), new Decimal(0));
-
-  if (grafico) {
-    return (
-      <Cartao>
-        <Linha style={{ justifyContent: 'space-between' }}>
-          <Texto variante="rotulo" cor={tema.negativo}>
-            Deve
-          </Texto>
-          <Texto variante="rotulo" cor={tema.positivo}>
-            Recebe
-          </Texto>
-        </Linha>
-        {saldos.map((s) => {
-          const fracao = maior.isZero() ? 0 : Number(s.saldo.abs().div(maior).toFixed(4));
-          const positivo = s.saldo.gt(0);
-          return (
-            <View key={s.id} style={{ gap: 4, paddingVertical: 6 }}>
-              <Linha style={{ justifyContent: 'space-between' }}>
-                <Texto variante="forte">{s.nome}</Texto>
-                <Texto
-                  variante="forte"
-                  cor={ehZero(s.saldo) ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
-                  {ehZero(s.saldo) ? 'quite' : `${positivo ? '+' : '−'} ${reais(s.saldo.abs())}`}
-                </Texto>
-              </Linha>
-              <View style={estilos.trilho}>
-                <View
-                  style={[estilos.metade, { alignItems: 'flex-end', borderRightWidth: 1, borderColor: tema.borda }]}>
-                  {!positivo && !ehZero(s.saldo) ? (
-                    <View
-                      style={[
-                        estilos.barra,
-                        { width: `${Math.max(fracao * 100, 3)}%`, backgroundColor: tema.negativo },
-                      ]}
-                    />
-                  ) : null}
-                </View>
-                <View style={estilos.metade}>
-                  {positivo ? (
-                    <View
-                      style={[
-                        estilos.barra,
-                        { width: `${Math.max(fracao * 100, 3)}%`, backgroundColor: tema.positivo },
-                      ]}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            </View>
-          );
-        })}
-      </Cartao>
-    );
-  }
-
-  return (
-    <View style={estilos.grade}>
-      {saldos.map((s) => {
-        const positivo = s.saldo.gt(0);
-        const quite = ehZero(s.saldo);
-        return (
-          <Cartao key={s.id} style={estilos.cartaoPessoa}>
-            <Linha>
-              <Avatar id={s.id} nome={s.nome} />
-              <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>
-                {s.nome}
-              </Texto>
-            </Linha>
-            <Texto variante="rotulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
-              {quite ? 'Quite' : positivo ? 'A receber' : 'A pagar'}
-            </Texto>
-            <Texto variante="subtitulo" cor={quite ? tema.textoSuave : positivo ? tema.positivo : tema.negativo}>
-              {reais(s.saldo.abs())}
-            </Texto>
-          </Cartao>
-        );
-      })}
-    </View>
-  );
-}
-
-function LinhaGasto({
-  g,
-  eu,
-  nome,
-  aoAbrir,
-}: {
-  g: Gasto;
-  eu: string;
-  nome: (u: string) => string;
-  aoAbrir: () => void;
-}) {
-  const tema = useTema();
-  const minhaParte = g.divisoes.find((d) => d.usuario_id === eu);
-  const pagou = g.pagadores.map((p) => nome(p.usuario_id)).join(' e ');
-  return (
-    <Pressable onPress={aoAbrir} style={({ pressed }) => [estilos.linhaLista, { opacity: pressed ? 0.7 : 1 }]}>
-      <Linha>
-        <View style={[estilos.data, { backgroundColor: tema.superficie2 }]}>
-          <Texto variante="suave" style={{ fontWeight: '700' }}>
-            {diaCurto(g.data)}
-          </Texto>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Texto variante="forte" numberOfLines={1}>
-            {g.descricao}
-          </Texto>
-          <Texto variante="suave" numberOfLines={1}>
-            Pago por {pagou}
-            {g.recorrente_id ? ' ↻' : ''}
-          </Texto>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Texto variante="forte">{reais(dec(g.valor_total))}</Texto>
-          {minhaParte ? <Texto variante="suave">sua parte {reaisCobrar(minhaParte.valor)}</Texto> : null}
-        </View>
-      </Linha>
-    </Pressable>
-  );
-}
-
-function descreverHistorico(r: RegistroHistorico, nome: (u: string) => string): string {
-  const quem = r.usuario_id ? nome(r.usuario_id) : 'Alguém';
-  const depois = (r.depois ?? {}) as Record<string, unknown>;
-  const antes = (r.antes ?? {}) as Record<string, unknown>;
-  switch (r.entidade) {
-    case 'gastos':
-      if (r.acao === 'insert') return `${quem} registrou "${depois.descricao}" de ${reais(String(depois.valor_total))}`;
-      if (r.acao === 'update') return `${quem} editou "${depois.descricao}"`;
-      return `${quem} excluiu "${antes.descricao}" de ${reais(String(antes.valor_total))}`;
-    case 'pagamentos': {
-      const dados = r.acao === 'insert' ? depois : antes;
-      const texto = `${nome(String(dados.de))} pagou ${reais(String(dados.valor_cobrado))} a ${nome(String(dados.para))}`;
-      return r.acao === 'insert' ? `${quem} marcou: ${texto}` : `${quem} desfez: ${texto}`;
-    }
-    case 'membros': {
-      const pessoa = nome(String(depois.usuario_id));
-      if (r.acao === 'insert') return `${pessoa} entrou no grupo`;
-      if (antes.ativo !== depois.ativo) return depois.ativo ? `${pessoa} voltou ao grupo` : `${pessoa} saiu do grupo`;
-      if (depois.papel === 'dono') return `${pessoa} passou a ser dono do grupo`;
-      return `${pessoa} deixou de ser dono do grupo`;
-    }
-    case 'grupos':
-      if (antes.abatimento !== depois.abatimento) {
-        return `${quem} ${depois.abatimento ? 'ligou' : 'desligou'} o abatimento`;
-      }
-      if (antes.codigo_convite !== depois.codigo_convite) return `${quem} gerou um novo código de convite`;
-      if (antes.nome !== depois.nome) return `${quem} mudou o nome do grupo para "${depois.nome}"`;
-      return `${quem} mudou as configurações do grupo`;
-    default:
-      return `${quem} fez uma alteração`;
-  }
-}
-
-function Historico({ registros, nome }: { registros: RegistroHistorico[]; nome: (u: string) => string }) {
-  if (registros.length === 0) return <Vazio titulo="Nada por aqui ainda" />;
-  return (
-    <Cartao style={{ padding: 0, gap: 0 }}>
-      {registros.map((r, i) => (
-        <View key={r.id}>
-          {i > 0 ? <Separador /> : null}
-          <View style={[estilos.linhaLista, { gap: 2 }]}>
-            <Texto>{descreverHistorico(r, nome)}</Texto>
-            <Texto variante="suave">{momento(r.criado_em)}</Texto>
-          </View>
-        </View>
-      ))}
-    </Cartao>
-  );
-}
-
-const estilos = StyleSheet.create({
-  resumo: { flexDirection: 'row', borderRadius: raio.g, borderWidth: 1, overflow: 'hidden' },
-  faixa: { width: 6 },
-  abas: { flexDirection: 'row', borderRadius: raio.m, padding: 4, gap: 4 },
-  aba: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: raio.p },
-  linhaLista: { padding: espaco.g, gap: espaco.m },
-  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
-  cartaoPessoa: { flexGrow: 1, flexBasis: 150, gap: 6 },
-  trilho: { flexDirection: 'row', height: 14 },
-  metade: { flex: 1, justifyContent: 'center' },
-  barra: { height: 12, borderRadius: 6 },
-  data: { width: 52, paddingVertical: 8, borderRadius: raio.p, alignItems: 'center' },
-});

@@ -4,20 +4,33 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Aviso as Faixa, Carregando, Cartao, Separador, Tela, Texto, Vazio } from '@/components/ui';
 import { espaco } from '@/constants/tema';
-import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { listarAvisos, marcarAvisosLidos } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+
+import { marcarAvisosLidos } from '@/lib/api';
+import { chaves, textoDoErro, useAtualizarAoFocar, useAvisos, usePuxar } from '@/lib/consultas';
 import { momento } from '@/lib/formatos';
 import type { Aviso } from '@/lib/tipos';
 
 export default function Avisos() {
   const tema = useTema();
-  const { dados, erro, carregando, atualizando, recarregar } = useCarregar(listarAvisos);
+  const consulta = useAvisos();
+  const cliente = useQueryClient();
+  const dados = consulta.data;
+  const erro = textoDoErro(consulta.error);
+  const carregando = consulta.isPending && !erro;
+  const recarregar = consulta.refetch;
+  const { puxando: atualizando, puxar } = usePuxar(recarregar);
+  useAtualizarAoFocar(recarregar);
 
   // depois de mostrar, marca tudo como lido (o destaque continua até sair da tela)
   useEffect(() => {
-    if (dados?.some((a) => !a.lido)) marcarAvisosLidos().catch(() => {});
-  }, [dados]);
+    if (dados?.some((a) => !a.lido)) {
+      marcarAvisosLidos()
+        .then(() => cliente.invalidateQueries({ queryKey: chaves.inicio }))
+        .catch(() => {});
+    }
+  }, [dados, cliente]);
 
   const corDoTipo: Record<Aviso['tipo'], string> = {
     gasto_novo: tema.primaria,
@@ -33,8 +46,8 @@ export default function Avisos() {
   if (carregando) return <Carregando />;
 
   return (
-    <Tela aoAtualizar={recarregar} atualizando={atualizando}>
-      {erro ? <Faixa texto={erro} acao="Tentar de novo" aoAcionar={recarregar} /> : null}
+    <Tela aoAtualizar={puxar} atualizando={atualizando}>
+      {erro ? <Faixa texto={erro} acao="Tentar de novo" aoAcionar={() => recarregar()} /> : null}
       {dados && dados.length === 0 ? (
         <Vazio titulo="Nenhum aviso" texto="Gastos novos, pagamentos e lembretes de dívida aparecem aqui." />
       ) : null}

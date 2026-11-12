@@ -1,18 +1,23 @@
+import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Share, StyleSheet, View } from 'react-native';
 
 import { Aviso, Botao, Carregando, Cartao, Tela, Texto } from '@/components/ui';
-import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import { buscarGrupo, mensagemDeErro, novoCodigoConvite } from '@/lib/api';
+import { mensagemDeErro, novoCodigoConvite } from '@/lib/api';
+import { chaves, textoDoErro, useGrupo } from '@/lib/consultas';
 import { urlDoSite } from '@/lib/supabase';
 
 export default function Convite() {
   const tema = useTema();
   const { id, novo } = useLocalSearchParams<{ id: string; novo?: string }>();
-  const { dados: grupo, erro, carregando, setDados } = useCarregar(() => buscarGrupo(id), id);
+  const consulta = useGrupo(id);
+  const cliente = useQueryClient();
+  const grupo = consulta.data;
+  const erro = textoDoErro(consulta.error);
+  const carregando = consulta.isPending && !erro;
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro' } | null>(null);
   const [gerando, setGerando] = useState(false);
 
@@ -42,7 +47,7 @@ export default function Convite() {
     setGerando(true);
     try {
       const codigo = await novoCodigoConvite(id);
-      setDados({ ...grupo, codigo_convite: codigo });
+      cliente.setQueryData(chaves.grupo(id), { ...grupo, codigo_convite: codigo });
       setAviso({ texto: 'Código novo gerado. O antigo parou de funcionar.', tipo: 'ok' });
     } catch (e) {
       setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });

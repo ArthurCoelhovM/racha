@@ -1,50 +1,23 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import {
-  Aviso,
-  Avatar,
-  Botao,
-  Campo,
-  CampoDinheiro,
-  Carregando,
-  Cartao,
-  CoresDoGrupo,
-  Ficha,
-  Fichas,
-  Interruptor,
-  Linha,
-  Separador,
-  Tela,
-  Texto,
-} from '@/components/ui';
+import { ComoFica } from '@/components/gasto/como-fica';
+import { novoItem } from '@/components/gasto/formulario-de-itens';
+import { RepetirGasto } from '@/components/gasto/repetir-gasto';
+import { SeletorDeDivisao, type EstadoDivisao } from '@/components/gasto/seletor-de-divisao';
+import { SeletorDePagadores } from '@/components/gasto/seletor-de-pagadores';
+import { Aviso, Botao, Campo, CampoDinheiro, Carregando, CoresDoGrupo, Tela, Texto } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
-import { useCarregar } from '@/hooks/use-carregar';
 import { useTema } from '@/hooks/use-tema';
-import {
-  buscarGasto,
-  buscarGrupo,
-  criarRecorrente,
-  excluirGasto,
-  listarMembros,
-  mensagemDeErro,
-  salvarGasto,
-} from '@/lib/api';
+import { criarRecorrente, excluirGasto, mensagemDeErro, salvarGasto } from '@/lib/api';
+import { textoDoErro, useGasto, useGrupo, useInvalidarGrupo, useMembros } from '@/lib/consultas';
 import { itensDaNota, ouvirNota } from '@/lib/cupom';
-import { Decimal, ehExato, lerValor, paraCampo, reais } from '@/lib/dinheiro';
+import { Decimal, lerValor, paraCampo, reais } from '@/lib/dinheiro';
 import { calcularDivisao, calcularPagadores, totalDosItens } from '@/lib/divisao';
 import { brParaIso, hojeIso, isoParaBr, proximaOcorrencia } from '@/lib/formatos';
 import { useSessao } from '@/lib/sessao';
-import {
-  TIPOS_DIVISAO,
-  type Frequencia,
-  type Gasto,
-  type Grupo,
-  type Item,
-  type Membro,
-  type TipoDivisao,
-} from '@/lib/tipos';
+import type { Frequencia, Gasto, Grupo, Membro } from '@/lib/tipos';
 
 export default function TelaGasto() {
   const { id, gastoId } = useLocalSearchParams<{
@@ -52,42 +25,33 @@ export default function TelaGasto() {
     gastoId?: string;
   }>();
   const { usuarioId } = useSessao();
-  const { dados, erro, carregando } = useCarregar(
-    async () => {
-      const [grupo, membros, gasto] = await Promise.all([
-        buscarGrupo(id),
-        listarMembros(id),
-        gastoId ? buscarGasto(gastoId) : Promise.resolve(null),
-      ]);
-      // quem já estava no gasto continua no formulário, mesmo que tenha saído do grupo
-      const noGasto = new Set<string>([
-        ...(gasto?.pagadores ?? []).map((p) => p.usuario_id),
-        ...(gasto?.divisoes ?? []).map((d) => d.usuario_id),
-        ...(gasto?.itens ?? []).flatMap((i) => i.participantes),
-      ]);
-      return { grupo, membros: membros.filter((m) => m.ativo || noGasto.has(m.usuario_id)), todos: membros, gasto };
-    },
-    `${id}|${gastoId ?? ''}`,
-  );
+  const grupo = useGrupo(id);
+  const membros = useMembros(id);
+  const gasto = useGasto(gastoId);
 
-  if (carregando) return <Carregando />;
-  if (!dados) return <Tela>{erro ? <Aviso texto={erro} /> : null}</Tela>;
+  const erro = textoDoErro(grupo.error ?? membros.error ?? gasto.error);
+  if (erro) return <Tela>{<Aviso texto={erro} />}</Tela>;
+  if (!grupo.data || !membros.data || (gastoId && !gasto.data)) return <Carregando />;
+
+  // quem já estava no gasto continua no formulário, mesmo que tenha saído do grupo
+  const doGasto = gastoId ? gasto.data! : null;
+  const noGasto = new Set<string>([
+    ...(doGasto?.pagadores ?? []).map((p) => p.usuario_id),
+    ...(doGasto?.divisoes ?? []).map((d) => d.usuario_id),
+    ...(doGasto?.itens ?? []).flatMap((i) => i.participantes),
+  ]);
 
   return (
-    <CoresDoGrupo membros={dados.todos}>
+    <CoresDoGrupo membros={membros.data}>
       <Formulario
-        key={dados.gasto?.id ?? 'novo'}
-        grupo={dados.grupo}
-        membros={dados.membros}
-        gasto={dados.gasto}
+        key={doGasto?.id ?? 'novo'}
+        grupo={grupo.data}
+        membros={membros.data.filter((m) => m.ativo || noGasto.has(m.usuario_id))}
+        gasto={doGasto}
         eu={usuarioId ?? ''}
       />
     </CoresDoGrupo>
   );
-}
-
-function novoItem(membros: string[]): Item {
-  return { descricao: '', valor: '', participantes: membros };
 }
 
 function porPessoa(gasto: Gasto | null, campo: 'parametro' | 'valor', dinheiro: boolean): Record<string, string> {
@@ -137,26 +101,21 @@ function Formulario({
     variosNoInicio ? Object.fromEntries(gasto!.pagadores.map((p) => [p.usuario_id, paraCampo(p.valor)])) : {},
   );
 
-  const [tipo, setTipo] = useState<TipoDivisao>(
-    tipoDoGasto && permitidos.includes(tipoDoGasto) ? tipoDoGasto : permitidos[0],
-  );
-  const [selecionados, setSelecionados] = useState<string[]>(
-    tipoDoGasto === 'igual' ? gasto!.divisoes.map((d) => d.usuario_id) : ativos,
-  );
-  const [valores, setValores] = useState<Record<string, string>>(
-    tipoDoGasto === 'exato' ? porPessoa(gasto, 'valor', true) : {},
-  );
-  const [porcentagens, setPorcentagens] = useState<Record<string, string>>(
-    tipoDoGasto === 'porcentagem' ? porPessoa(gasto, 'parametro', false) : {},
-  );
-  const [cotas, setCotas] = useState<Record<string, string>>(
-    tipoDoGasto === 'cotas' ? porPessoa(gasto, 'parametro', false) : Object.fromEntries(ativos.map((u) => [u, '1'])),
-  );
-  const [itens, setItens] = useState<Item[]>(
-    tipoDoGasto === 'itens' && gasto?.itens?.length
-      ? gasto.itens.map((i) => ({ ...i, valor: paraCampo(i.valor) }))
-      : [novoItem(ativos)],
-  );
+  const [divisaoEstado, setDivisaoEstado] = useState<EstadoDivisao>(() => ({
+    tipo: tipoDoGasto && permitidos.includes(tipoDoGasto) ? tipoDoGasto : permitidos[0],
+    selecionados: tipoDoGasto === 'igual' ? gasto!.divisoes.map((d) => d.usuario_id) : ativos,
+    valores: tipoDoGasto === 'exato' ? porPessoa(gasto, 'valor', true) : {},
+    porcentagens: tipoDoGasto === 'porcentagem' ? porPessoa(gasto, 'parametro', false) : {},
+    cotas:
+      tipoDoGasto === 'cotas' ? porPessoa(gasto, 'parametro', false) : Object.fromEntries(ativos.map((u) => [u, '1'])),
+    itens:
+      tipoDoGasto === 'itens' && gasto?.itens?.length
+        ? gasto.itens.map((i) => ({ ...i, valor: paraCampo(i.valor) }))
+        : [novoItem(ativos)],
+  }));
+  const { tipo, itens } = divisaoEstado;
+  const mudarDivisao = (mudanca: Partial<EstadoDivisao>) => setDivisaoEstado((atual) => ({ ...atual, ...mudanca }));
+  const invalidar = useInvalidarGrupo();
 
   const [infoNota, setInfoNota] = useState<string | null>(null);
   const [repetir, setRepetir] = useState(false);
@@ -179,8 +138,7 @@ function Formulario({
         const desconto =
           nota.desconto > 0 ? ` O desconto de ${reais(nota.desconto)} foi distribuído entre os itens.` : '';
         if (grupo.divisoes_permitidas.includes('itens')) {
-          setTipo('itens');
-          setItens(daNota);
+          mudarDivisao({ tipo: 'itens', itens: daNota });
           setInfoNota(
             `Nota lida: ${daNota.length} itens, total ${reais(totalNota)}.${desconto} Desmarque quem não participou de cada item.`,
           );
@@ -194,13 +152,7 @@ function Formulario({
   );
 
   const total = tipo === 'itens' ? totalDosItens(itens) : (lerValor(valorTexto) ?? new Decimal(0));
-  const divisao = calcularDivisao(tipo, total, ids, {
-    selecionados,
-    valores,
-    porcentagens,
-    cotas,
-    itens,
-  });
+  const divisao = calcularDivisao(tipo, total, ids, divisaoEstado);
   const pagadores = calcularPagadores(total, varios ? null : pagadorUnico, varios ? valoresPagos : null);
 
   async function salvar() {
@@ -241,6 +193,7 @@ function Formulario({
       };
       const novoId = await salvarGasto(dadosGasto);
       if (!gasto && repetir) await criarRecorrente(dadosGasto, frequencia, novoId);
+      await invalidar(grupo.id);
       router.back();
     } catch (e) {
       setErro(mensagemDeErro(e));
@@ -254,6 +207,7 @@ function Formulario({
     setSalvando(true);
     try {
       await excluirGasto(gasto.id);
+      await invalidar(grupo.id);
       router.back();
     } catch (e) {
       setErro(mensagemDeErro(e));
@@ -261,21 +215,6 @@ function Formulario({
     }
   }
 
-  function alternar(lista: string[], u: string) {
-    return lista.includes(u) ? lista.filter((x) => x !== u) : [...lista, u];
-  }
-
-  function mudarItem(indice: number, mudanca: Partial<Item>) {
-    setItens((atual) => atual.map((item, i) => (i === indice ? { ...item, ...mudanca } : item)));
-  }
-
-  function mudarCota(u: string, delta: number) {
-    const atual = lerValor(cotas[u] ?? '0') ?? new Decimal(0);
-    const novo = Decimal.max(0, atual.plus(delta));
-    setCotas({ ...cotas, [u]: novo.toString().replace('.', ',') });
-  }
-
-  const dicaTipo = TIPOS_DIVISAO.find((t) => t.tipo === tipo)?.dica;
   const dataEscolhida = brParaIso(dataTexto);
   const proximaData = dataEscolhida
     ? proximaOcorrencia(dataEscolhida, frequencia, Number(dataEscolhida.slice(8, 10)))
@@ -332,231 +271,41 @@ function Formulario({
         </View>
       </View>
 
-      <Secao titulo="Quem pagou">
-        <Fichas>
-          {membros.map((m) => (
-            <Ficha
-              key={m.usuario_id}
-              rotulo={nome(m.usuario_id)}
-              selecionada={!varios && pagadorUnico === m.usuario_id}
-              aoPressionar={() => {
-                setVarios(false);
-                setPagadorUnico(m.usuario_id);
-              }}
-            />
-          ))}
-          <Ficha rotulo="Mais de um" selecionada={varios} aoPressionar={() => setVarios(!varios)} />
-        </Fichas>
-        {varios ? (
-          <Cartao>
-            {membros.map((m) => (
-              <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
-                <CampoDinheiro
-                  value={valoresPagos[m.usuario_id] ?? ''}
-                  onChangeText={(t) => setValoresPagos({ ...valoresPagos, [m.usuario_id]: t })}
-                  accessibilityLabel={`Quanto ${nome(m.usuario_id)} pagou`}
-                  style={estilos.campoPequeno}
-                />
-              </LinhaPessoa>
-            ))}
-            <Texto variante="suave" cor={pagadores.erro ? tema.negativo : tema.positivo}>
-              {pagadores.erro ?? 'Os pagamentos fecham o total.'}
-            </Texto>
-          </Cartao>
-        ) : null}
-      </Secao>
+      <SeletorDePagadores
+        membros={membros}
+        nome={nome}
+        varios={varios}
+        pagadorUnico={pagadorUnico}
+        valoresPagos={valoresPagos}
+        erro={pagadores.erro}
+        aoEscolherUm={(u) => {
+          setVarios(false);
+          setPagadorUnico(u);
+        }}
+        aoAlternarVarios={() => setVarios(!varios)}
+        aoMudarValor={(u, t) => setValoresPagos({ ...valoresPagos, [u]: t })}
+      />
 
-      <Secao titulo="Como dividir">
-        <Fichas>
-          {TIPOS_DIVISAO.filter((t) => permitidos.includes(t.tipo)).map((t) => (
-            <Ficha
-              key={t.tipo}
-              rotulo={t.nome}
-              selecionada={tipo === t.tipo}
-              aoPressionar={() => setTipo(t.tipo)}
-              cor={grupo.cor}
-            />
-          ))}
-        </Fichas>
-        {dicaTipo ? <Texto variante="suave">{dicaTipo}</Texto> : null}
+      <SeletorDeDivisao
+        estado={divisaoEstado}
+        permitidos={permitidos}
+        cor={grupo.cor}
+        membros={membros}
+        ativos={ativos}
+        nome={nome}
+        aoMudar={mudarDivisao}
+      />
 
-        {tipo === 'igual' ? (
-          <Fichas>
-            {membros.map((m) => (
-              <Ficha
-                key={m.usuario_id}
-                rotulo={nome(m.usuario_id)}
-                selecionada={selecionados.includes(m.usuario_id)}
-                aoPressionar={() => setSelecionados(alternar(selecionados, m.usuario_id))}
-              />
-            ))}
-            <Ficha
-              rotulo="Todos"
-              selecionada={selecionados.length === ids.length}
-              aoPressionar={() => setSelecionados(selecionados.length === ids.length ? [] : ids)}
-            />
-          </Fichas>
-        ) : null}
-
-        {tipo === 'exato' ? (
-          <Cartao>
-            {membros.map((m) => (
-              <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
-                <CampoDinheiro
-                  value={valores[m.usuario_id] ?? ''}
-                  onChangeText={(t) => setValores({ ...valores, [m.usuario_id]: t })}
-                  accessibilityLabel={`Parte de ${nome(m.usuario_id)}`}
-                  style={estilos.campoPequeno}
-                />
-              </LinhaPessoa>
-            ))}
-          </Cartao>
-        ) : null}
-
-        {tipo === 'porcentagem' ? (
-          <Cartao>
-            {membros.map((m) => (
-              <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
-                <Campo
-                  value={porcentagens[m.usuario_id] ?? ''}
-                  onChangeText={(t) => setPorcentagens({ ...porcentagens, [m.usuario_id]: t })}
-                  keyboardType="decimal-pad"
-                  placeholder="0 %"
-                  accessibilityLabel={`Porcentagem de ${nome(m.usuario_id)}`}
-                  style={estilos.campoPequeno}
-                />
-              </LinhaPessoa>
-            ))}
-          </Cartao>
-        ) : null}
-
-        {tipo === 'cotas' ? (
-          <Cartao>
-            {membros.map((m) => (
-              <LinhaPessoa key={m.usuario_id} id={m.usuario_id} nome={nome(m.usuario_id)}>
-                <Linha style={{ gap: 6 }}>
-                  <BotaoRedondo rotulo="−" aoPressionar={() => mudarCota(m.usuario_id, -1)} />
-                  <Campo
-                    value={cotas[m.usuario_id] ?? ''}
-                    onChangeText={(t) => setCotas({ ...cotas, [m.usuario_id]: t })}
-                    keyboardType="decimal-pad"
-                    style={[estilos.campoPequeno, { width: 64, textAlign: 'center' }]}
-                  />
-                  <BotaoRedondo rotulo="+" aoPressionar={() => mudarCota(m.usuario_id, 1)} />
-                </Linha>
-              </LinhaPessoa>
-            ))}
-          </Cartao>
-        ) : null}
-
-        {tipo === 'itens' ? (
-          <View style={{ gap: espaco.m }}>
-            {itens.map((item, i) => (
-              <Cartao key={i}>
-                <Campo
-                  value={item.descricao}
-                  onChangeText={(t) => mudarItem(i, { descricao: t })}
-                  placeholder={`Item ${i + 1}`}
-                  accessibilityLabel={`Item ${i + 1}`}
-                />
-                <Linha style={{ alignItems: 'flex-start' }}>
-                  <CampoDinheiro
-                    value={item.valor}
-                    onChangeText={(t) => mudarItem(i, { valor: t })}
-                    accessibilityLabel={`Valor do item ${i + 1}`}
-                    style={estilos.campoPequeno}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Fichas>
-                      {membros.map((m) => (
-                        <Ficha
-                          key={m.usuario_id}
-                          rotulo={nome(m.usuario_id)}
-                          selecionada={item.participantes.includes(m.usuario_id)}
-                          aoPressionar={() =>
-                            mudarItem(i, {
-                              participantes: alternar(item.participantes, m.usuario_id),
-                            })
-                          }
-                        />
-                      ))}
-                    </Fichas>
-                  </View>
-                </Linha>
-                {itens.length > 1 ? (
-                  <Botao
-                    titulo="Remover item"
-                    variante="texto"
-                    pequeno
-                    aoPressionar={() => setItens(itens.filter((_, j) => j !== i))}
-                    style={{ alignSelf: 'flex-start' }}
-                  />
-                ) : null}
-              </Cartao>
-            ))}
-            <Botao
-              titulo="+ Adicionar item"
-              variante="secundario"
-              aoPressionar={() => setItens([...itens, novoItem(ativos)])}
-            />
-          </View>
-        ) : null}
-      </Secao>
-
-      <Secao titulo="Como fica">
-        <Cartao>
-          {divisao.partes.length === 0 ? (
-            <Texto variante="suave">Preencha o valor e escolha quem divide.</Texto>
-          ) : (
-            divisao.partes.map((p, i) => (
-              <View key={p.usuario_id} style={{ gap: espaco.m }}>
-                {i > 0 ? <Separador /> : null}
-                <LinhaPessoa id={p.usuario_id} nome={nome(p.usuario_id)}>
-                  <Texto variante="forte">
-                    {ehExato(p.valor) ? '' : '≈ '}
-                    {reais(p.valor)}
-                  </Texto>
-                </LinhaPessoa>
-              </View>
-            ))
-          )}
-          {divisao.erro ? (
-            <Texto variante="suave" cor={tema.negativo}>
-              {divisao.erro}
-            </Texto>
-          ) : null}
-        </Cartao>
-        <Texto variante="suave">
-          As contas guardam os centavos exatos. Na hora de cobrar, o valor é arredondado para cima.
-        </Texto>
-      </Secao>
+      <ComoFica partes={divisao.partes} erro={divisao.erro} nome={nome} />
 
       {!gasto ? (
-        <Cartao>
-          <Interruptor
-            titulo="Repetir este gasto"
-            descricao="Bom para aluguel, luz e internet. Dá para editar o valor de cada lançamento depois."
-            valor={repetir}
-            aoMudar={setRepetir}
-          />
-          {repetir ? (
-            <>
-              <Fichas>
-                <Ficha
-                  rotulo="Todo mês"
-                  selecionada={frequencia === 'mensal'}
-                  aoPressionar={() => setFrequencia('mensal')}
-                />
-                <Ficha
-                  rotulo="Toda semana"
-                  selecionada={frequencia === 'semanal'}
-                  aoPressionar={() => setFrequencia('semanal')}
-                />
-              </Fichas>
-              {proximaData ? <Texto variante="suave">Próximo lançamento em {isoParaBr(proximaData)}.</Texto> : null}
-            </>
-          ) : null}
-        </Cartao>
+        <RepetirGasto
+          repetir={repetir}
+          frequencia={frequencia}
+          proximaData={proximaData}
+          aoMudarRepetir={setRepetir}
+          aoMudarFrequencia={setFrequencia}
+        />
       ) : null}
 
       {erro ? <Aviso texto={erro} /> : null}
@@ -579,58 +328,12 @@ function Formulario({
   );
 }
 
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
-  return (
-    <View style={{ gap: espaco.m }}>
-      <Texto variante="rotulo">{titulo}</Texto>
-      {children}
-    </View>
-  );
-}
-
-function LinhaPessoa({ id, nome, children }: { id: string; nome: string; children: ReactNode }) {
-  return (
-    <Linha>
-      <Avatar id={id} nome={nome} tamanho={28} />
-      <Texto variante="forte" numberOfLines={1} style={{ flex: 1 }}>
-        {nome}
-      </Texto>
-      {children}
-    </Linha>
-  );
-}
-
-function BotaoRedondo({ rotulo, aoPressionar }: { rotulo: string; aoPressionar: () => void }) {
-  const tema = useTema();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={aoPressionar}
-      style={({ pressed }) => [estilos.redondo, { backgroundColor: tema.superficie2, opacity: pressed ? 0.7 : 1 }]}>
-      <Texto variante="subtitulo">{rotulo}</Texto>
-    </Pressable>
-  );
-}
-
 const estilos = StyleSheet.create({
   duasColunas: { flexDirection: 'row', gap: espaco.m },
-  campoPequeno: {
-    width: 110,
-    minHeight: 42,
-    paddingVertical: 6,
-    textAlign: 'right',
-  },
   valorFixo: {
     minHeight: 48,
     borderRadius: raio.m,
     paddingHorizontal: 14,
-    justifyContent: 'center',
-  },
-  redondo: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
     justifyContent: 'center',
   },
 });
