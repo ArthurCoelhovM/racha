@@ -12,14 +12,17 @@ App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tri
 | --- | --- |
 | Abatimento | Configurado por grupo. Ligado: A deve 50 a B e B deve 30 a A, então A paga 20 a B. Desligado (ex.: Casa, com luz e aluguel): cada gasto é cobrado separado. |
 | Terceiros | Nunca existe dívida passando por uma terceira pessoa. |
-| Valores | As partes são guardadas com 18 casas decimais. Na hora de cobrar, o valor é arredondado para cima no centavo (R$ 33,333… vira R$ 33,34). |
+| Valores | Tudo em centavos exatos: as partes somam o total. Quando a conta não divide certinho, o centavo que sobra fica com quem pagou (R$ 100 entre 3: 33,34 para quem pagou e 33,33 para os outros). |
 | Vários pagadores | Quem pagou mais que a sua parte recebe de quem pagou menos, na proporção do que adiantou. |
 | Formas de dividir | Igual, valor exato, porcentagem, cotas e por item. Cada grupo escolhe quais permite. |
-| Pagamento | Um toque em "Marcar que paguei" ou "Marcar que recebi". Dá para desfazer. |
-| Histórico | Gastos, pagamentos, entradas, saídas e mudanças de configuração ficam registrados. |
+| Pagamento | Um toque em "Paguei" ou "Recebi". Dá para desfazer. Sem abatimento, "Acertar tudo" quita todas as dívidas com uma pessoa. "Cobrar" manda um aviso na hora (uma vez a cada 12 horas). |
+| Papéis | Dono, admin e membro. O dono escolhe quem pode registrar gastos, editar gastos dos outros, mudar as configurações, convidar e remover pessoas. Cada um sempre edita os gastos que registrou. |
+| Quem saiu | O grupo continua vendo a dívida como "Bia (saiu)". A Bia vê o que ficou em aberto na tela inicial e marca como pago. |
+| Categorias e resumo | Cada gasto tem uma categoria. A aba Resumo mostra o mês contra a média, categorias, quem pagou o quê, gasto por mês, contas fixas no ano e os itens mais comprados no mercado. |
+| Histórico | Gastos, pagamentos, entradas, saídas, papéis e mudanças de configuração ficam registrados. Dentro de cada gasto, a seção Alterações mostra o antes e o depois de cada campo, mesmo depois de pago. |
 | Avisos | Gasto novo, pagamento marcado e gente nova no grupo geram um aviso para quem foi afetado (quem fez a ação não é avisado). |
 | Lembretes | Todo dia às 9h o banco lembra quem está devendo, respeitando a frequência escolhida em cada grupo. |
-| Recorrentes | Um gasto pode se repetir todo mês ou toda semana. O lançamento acontece sozinho e cada um pode ser editado depois. |
+| Recorrentes | Um gasto pode se repetir todo mês ou toda semana. O lançamento acontece sozinho e cada um pode ser editado depois. Contas de valor variável (luz, água) avisam quem pagou para preencher o valor do mês. |
 | Notificações | Cada aviso também chega como notificação: no Android pelo app, no iPhone pela versão web instalada na Tela de Início. Liga e desliga em Sua conta. |
 | Privacidade | Política de privacidade no app e botão "Excluir minha conta": nome, e-mail, aparelhos e avisos são apagados; os gastos ficam no histórico do grupo como "Conta excluída". |
 | Convites | Depois de 8 códigos errados em 15 minutos, a pessoa precisa esperar para tentar de novo. |
@@ -30,16 +33,22 @@ App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tri
 ```
 src/app/                 telas (Expo Router)
   index.tsx              lista de grupos
-  grupo/[id]/index.tsx   dívidas (lista, por pessoa, gráfico), gastos e histórico
-  grupo/[id]/gasto.tsx   novo gasto e edição
-src/lib/divisao.ts       contas de divisão
-src/lib/saldos.ts        quem deve a quem, com e sem abatimento
+  grupo/[id]/index.tsx   dívidas, gastos (busca e filtros), resumo com gráficos e histórico
+  grupo/[id]/gasto.tsx   novo gasto, edição, alterações e comentários
+src/components/          pedaços das telas (grupo/, gasto/, configuracoes/, inicio/) e ui.tsx
+src/lib/banco.ts         tipos gerados do banco (npm run tipos:banco), não editar à mão
+src/lib/consultas.ts     TanStack Query: chaves, consultas e "marcar como pago" otimista
 src/lib/api.ts           chamadas ao Supabase
-src/lib/cupom.ts         itens da nota fiscal para a divisão por item
+src/lib/divisao.ts       contas de divisão em centavos
+src/lib/graficos.ts      contas dos gráficos do resumo
+src/lib/permissoes.ts    papéis e permissões (a regra de verdade está no banco)
+src/lib/erros.ts         registro de erros na tabela "erros"
 supabase/migrations/     banco: tabelas, RLS, funções e triggers
-supabase/functions/      Edge Function que consulta a nota no site da Sefaz
-supabase/testes/         testes do banco
-testes/                  testes das contas
+supabase/functions/      Edge Functions (cupom, push e exclusão de conta)
+supabase/testes/         testes do banco (05 é a lista revisada de funções liberadas)
+testes/                  testes das contas e dos gráficos
+e2e/                     testes de ponta a ponta (Playwright)
+scripts/gerar-tipos.sh   gera src/lib/banco.ts a partir das migrações
 public/                  manifesto e ícones da versão web
 ```
 
@@ -72,6 +81,10 @@ Detalhes da produção:
    - `20261016170000_push_conta_convite.sql`
    - `20261016200000_correcoes_da_revisao.sql`
    - `20261016200100_agendamentos_limpeza.sql` (limpeza mensal de avisos antigos, também com pg_cron)
+   - `20261112100000_arquitetura.sql` (permissões fechadas por padrão e tabela de erros)
+   - `20261112110000_papeis_centavos_historico.sql` (papéis, centavos exatos, quem saiu; converte os valores antigos)
+   - `20261112120000_cobrar.sql`
+   - `20261112130000_funcionalidades.sql` (categorias, valor variável, busca, arquivar, apelido, comprovante, comentários, meus dados)
 
    Se você já tinha rodado os primeiros, rode só os que faltam, na ordem. Com a CLI, `npx supabase db push` faz isso sozinho.
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email**. O envio de e-mail padrão do Supabase só entrega para pessoas da equipe do projeto e no máximo 2 por hora, então seus amigos não receberiam a confirmação. Para recuperar senha por e-mail, configure um SMTP próprio (Brevo e Resend têm plano grátis) em **Authentication > Emails > SMTP Settings**.
@@ -137,13 +150,23 @@ Na Netlify também funciona: build `npx expo export -p web`, pasta `dist`. O arq
 O GitHub roda tudo isso sozinho a cada envio de código (`.github/workflows/testes.yml`).
 
 ```bash
-npm run testes          # contas de divisão, abatimento e arredondamento
+npm run testes          # contas de divisão, centavos e gráficos
 npm run tipos           # TypeScript
 npm run lint
 npm run testes:banco    # precisa de um Postgres local: PGHOST, PGPORT e PGUSER
+npm run tipos:banco     # gera src/lib/banco.ts (mesmo Postgres); rode depois de mudar uma migração
+npm run e2e             # ponta a ponta: precisa do Supabase local (supabase start) e de npm run e2e:web
 ```
+
+No GitHub também roda o job **Ponta a ponta**: `supabase start`, a versão web apontando para ele e os testes do Playwright.
+
+Toda função nova do banco nasce fechada. Para liberar uma função para o app, dê o `grant` na migração e acrescente a assinatura em `supabase/testes/05_permissoes.sql`; sem isso, os testes do banco falham.
+
+Erros inesperados do app ficam na tabela `erros` (Supabase > Table Editor), com a tela, a plataforma e a versão.
 
 ## Ainda falta
 
 - Testar a entrega das notificações em celulares de verdade (os testes usam serviços de push simulados).
+- Cartão de primeiro uso explicando o abatimento direto (anotado na segunda revisão).
+- O envio de e-mail padrão do Supabase só entrega para a equipe do projeto: configurar um SMTP antes de chamar o grupo.
 - Conferir a leitura do cupom com notas reais de cada estado que o grupo usa (os testes usam páginas-modelo).
