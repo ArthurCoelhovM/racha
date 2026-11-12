@@ -53,3 +53,57 @@ jobs:
           PGPORT: 5432
           PGUSER: postgres
           PGPASSWORD: postgres
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tipos do banco em dia (src/lib/banco.ts)
+        run: |
+          ./scripts/gerar-tipos.sh
+          git diff --exit-code src/lib/banco.ts || {
+            echo "::error::src/lib/banco.ts está desatualizado. Rode npm run tipos:banco e envie o arquivo."
+            exit 1
+          }
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+
+  ponta_a_ponta:
+    name: Ponta a ponta (navegador + Supabase local)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      - name: Supabase local (banco, login e API)
+        run: supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta
+      - name: Endereço e chave do Supabase local
+        run: |
+          eval "$(supabase status -o env)"
+          echo "E2E_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "E2E_SUPABASE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+      - name: Versão web apontando para o Supabase local
+        run: npx expo export -p web
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ env.E2E_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ env.E2E_SUPABASE_KEY }}
+          EXPO_PUBLIC_SITE_URL: http://localhost:8081
+      - run: npx playwright install --with-deps chromium
+      - name: Testes no navegador
+        run: |
+          npx -y serve@14 -s dist -l 8081 > /dev/null 2>&1 &
+          npx -y wait-on@8 -t 60000 http://localhost:8081
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: relatorio-playwright
+          path: playwright-report
+          retention-days: 7

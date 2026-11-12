@@ -5,6 +5,9 @@ name: Publicar
 #   Os segredos das funções (VAPID e PUSH_WEBHOOK_SEGREDO) ficam no painel do Supabase.
 # - APK: precisa do segredo EXPO_TOKEN. Na primeira vez, marque "Primeiro APK" para a Expo
 #   criar e guardar a chave de assinatura do Android (o plano grátis tem 15 builds por mês).
+# - Atualização pelo ar: manda o JavaScript novo para quem já tem o APK, sem reinstalar.
+#   Só vale para mudanças de código; biblioteca nativa nova pede um APK novo
+#   (o runtimeVersion "fingerprint" impede que a atualização chegue num APK incompatível).
 
 on:
   workflow_dispatch:
@@ -19,6 +22,10 @@ on:
         default: true
       primeiro_apk:
         description: Primeiro APK (cria a chave de assinatura na Expo)
+        type: boolean
+        default: false
+      atualizacao:
+        description: Atualização pelo ar para quem já tem o APK
         type: boolean
         default: false
 
@@ -78,3 +85,25 @@ jobs:
       - name: APK
         if: ${{ !inputs.primeiro_apk }}
         run: eas build --platform android --profile apk --non-interactive --no-wait
+
+  atualizacao:
+    name: Atualização pelo ar (EAS Update)
+    if: inputs.atualizacao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Variáveis do app (as mesmas do perfil apk do eas.json)
+        run: jq -r '.build.apk.env | to_entries[] | "\(.key)=\(.value)"' eas.json >> "$GITHUB_ENV"
+      - name: Publicar a atualização
+        run: >
+          eas update --channel production --platform android --non-interactive
+          --message "$(git log -1 --format=%s)"
