@@ -55,7 +55,7 @@ end $$;
 set role authenticated;
 select set_config('request.jwt.claim.sub', :'hugo', false) \g /dev/null
 select public.criar_grupo('Futebol') as futebol \gset
-select codigo_convite as cod_futebol from public.grupos where id = :'futebol' \gset
+select public.codigo_do_grupo(:'futebol') as cod_futebol \gset
 
 select set_config('request.jwt.claim.sub', :'juca', false) \g /dev/null
 do $$ begin

@@ -5,7 +5,19 @@ import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { dec, reais, reaisCobrar } from '@/lib/dinheiro';
 import { diaCurto, isoParaBr } from '@/lib/formatos';
+import type { Pendencia } from '@/lib/saldos';
 import type { Gasto, Recorrente } from '@/lib/tipos';
+
+// Um gasto está pago quando nenhuma das dívidas que ele criou continua em aberto.
+// Sem abatimento, a pendência aponta para o gasto; com abatimento, para o par de pessoas.
+export function gastoPago(g: Gasto, pendencias: Pendencia[]): boolean {
+  if (g.dividas.length === 0) return true;
+  return !g.dividas.some((d) =>
+    pendencias.some(
+      (p) => p.devedor === d.devedor && p.credor === d.credor && (p.gasto_id === null || p.gasto_id === g.id),
+    ),
+  );
+}
 
 export function ListaDeRecorrentes({
   recorrentes,
@@ -37,6 +49,7 @@ export function ListaDeRecorrentes({
 
 export function ListaDeGastos({
   gastos,
+  pendencias,
   total,
   eu,
   nome,
@@ -45,6 +58,7 @@ export function ListaDeGastos({
   aoCarregarMais,
 }: {
   gastos: Gasto[];
+  pendencias: Pendencia[];
   total: number;
   eu: string;
   nome: (u: string) => string;
@@ -61,7 +75,7 @@ export function ListaDeGastos({
         {gastos.map((g, i) => (
           <View key={g.id}>
             {i > 0 ? <Separador /> : null}
-            <LinhaGasto g={g} eu={eu} nome={nome} aoAbrir={() => aoAbrir(g)} />
+            <LinhaGasto g={g} eu={eu} nome={nome} pago={gastoPago(g, pendencias)} aoAbrir={() => aoAbrir(g)} />
           </View>
         ))}
       </Cartao>
@@ -81,11 +95,13 @@ function LinhaGasto({
   g,
   eu,
   nome,
+  pago,
   aoAbrir,
 }: {
   g: Gasto;
   eu: string;
   nome: (u: string) => string;
+  pago: boolean;
   aoAbrir: () => void;
 }) {
   const tema = useTema();
@@ -109,7 +125,16 @@ function LinhaGasto({
           </Texto>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Texto variante="forte">{reais(dec(g.valor_total))}</Texto>
+          <Linha style={{ gap: 6 }}>
+            {pago && g.dividas.length > 0 ? (
+              <View style={[estilos.selo, { backgroundColor: tema.fundoPositivo }]}>
+                <Texto variante="suave" cor={tema.positivo} style={{ fontWeight: '800', fontSize: 11 }}>
+                  PAGO
+                </Texto>
+              </View>
+            ) : null}
+            <Texto variante="forte">{reais(dec(g.valor_total))}</Texto>
+          </Linha>
           {minhaParte ? <Texto variante="suave">sua parte {reaisCobrar(minhaParte.valor)}</Texto> : null}
         </View>
       </Linha>
@@ -120,4 +145,5 @@ function LinhaGasto({
 const estilos = StyleSheet.create({
   linha: { padding: espaco.g, gap: espaco.m },
   data: { width: 52, paddingVertical: 8, borderRadius: raio.p, alignItems: 'center' },
+  selo: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 },
 });

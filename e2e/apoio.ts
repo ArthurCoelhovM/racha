@@ -39,3 +39,23 @@ export async function criarConta(p: Page, nome: string, email: string) {
   await campo(p, 'Senha').fill('senha123');
   await botao(p, 'Criar conta').click();
 }
+
+export async function entrar(p: Page, email: string) {
+  await p.goto('/');
+  await campo(p, 'E-mail').fill(email);
+  await campo(p, 'Senha').fill('senha123');
+  await botao(p, 'Entrar').click();
+}
+
+export function gasto(grupo: string, descricao: string, total: number, pagou: string, partes: [string, number][]) {
+  return {
+    p: {
+      grupo_id: grupo,
+      descricao,
+      valor_total: total,
+      tipo_divisao: 'igual',
+      pagadores: [{ usuario_id: pagou, valor: total }],
+      divisoes: partes.map(([u, v]) => ({ usuario_id: u, valor: v })),
+    },
+  };
+}

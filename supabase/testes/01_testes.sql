@@ -25,8 +25,8 @@ select set_config('request.jwt.claim.sub', :'ana', false) \g /dev/null
 
 select public.criar_grupo('Mercado', '#5B4CF0', true) as mercado \gset
 select public.criar_grupo('Casa', '#E8680A', false, array['igual', 'exato']) as casa \gset
-select codigo_convite as cod_mercado from public.grupos where id = :'mercado' \gset
-select codigo_convite as cod_casa from public.grupos where id = :'casa' \gset
+select public.codigo_do_grupo(:'mercado') as cod_mercado \gset
+select public.codigo_do_grupo(:'casa') as cod_casa \gset
 
 select set_config('request.jwt.claim.sub', :'bia', false) \g /dev/null
 select public.entrar_no_grupo(lower(:'cod_mercado')) \g /dev/null
@@ -163,15 +163,16 @@ select testes.deve_falhar(format(
      "pagadores": [{"usuario_id": "%s", "valor": 10}], "divisoes": [{"usuario_id": "%s", "valor": 10}]}'::jsonb)$q$,
   :'casa', :'ana', :'caio'), 'membros do grupo') \g /dev/null
 
--- só as configurações do grupo podem ser editadas
-update public.grupos set abatimento = true, lembrete_dias = 3 where id = :'casa';
+-- configurações só pela função atualizar_grupo; o grupo não é editado direto
+select public.atualizar_grupo(id, nome, cor, true, divisoes_permitidas, 3) from public.grupos where id = :'casa' \g /dev/null
 select testes.deve_falhar(format('update public.grupos set codigo_convite = ''AAAAAA'' where id = %L', :'casa'), 'permission denied') \g /dev/null
+select testes.deve_falhar(format('update public.grupos set abatimento = false where id = %L', :'casa'), 'permission denied') \g /dev/null
 select testes.deve_falhar('insert into public.dividas (grupo_id, gasto_id, devedor, credor, valor) select grupo_id, id, criado_por, criado_por, 1 from public.gastos limit 1', 'permission denied') \g /dev/null
 do $$ begin
   assert (select voce_deve from public.resumo_meus_grupos() where nome = 'Casa') = 20, 'ligar o abatimento muda o resumo para 20';
   assert (select count(*) from public.historico where entidade = 'grupos') = 1, 'mudança de configuração no histórico';
 end $$;
-update public.grupos set abatimento = false where id = :'casa';
+select public.atualizar_grupo(id, nome, cor, false, divisoes_permitidas, 3) from public.grupos where id = :'casa' \g /dev/null
 
 -- ---------------------------------------------------------------
 -- Divisões com dízima e vários pagadores
@@ -206,8 +207,11 @@ declare
 begin
   select valor into v from public.dividas d join public.gastos g on g.id = d.gasto_id
   where g.descricao = 'Pizza' and d.devedor = bia and d.credor = ana;
-  assert v = 33.333333333333333333, format('parte exata da Bia na pizza: %s', v);
-  assert public.valor_a_cobrar(v) = 33.34, 'cobrança arredonda para cima';
+  assert v = 33.33, format('parte da Bia na pizza em centavos: %s', v);
+  assert (select valor from public.gasto_divisoes d join public.gastos g on g.id = d.gasto_id
+          where g.descricao = 'Pizza' and d.usuario_id = ana) = 33.34, 'o centavo que sobra fica com quem pagou';
+  assert (select sum(valor) from public.gasto_divisoes d join public.gastos g on g.id = d.gasto_id
+          where g.descricao = 'Pizza') = 100, 'as partes somam o total exato';
 
   assert (select count(*) from public.dividas d join public.gastos g on g.id = d.gasto_id where g.descricao = 'Uber') = 1,
     'no Uber só Caio deve';
@@ -242,7 +246,7 @@ end $$;
 set role authenticated;
 -- só quem registrou (Ana) ou o dono exclui; Bia não pode
 select set_config('request.jwt.claim.sub', :'bia', false) \g /dev/null
-select testes.deve_falhar(format('select public.excluir_gasto(%L)', :'gasto1'), 'Só quem registrou') \g /dev/null
+select testes.deve_falhar(format('select public.excluir_gasto(%L)', :'gasto1'), 'excluir gastos de outras pessoas') \g /dev/null
 select testes.deve_falhar(format('delete from public.gastos where id = %L', :'gasto1'), 'permission denied') \g /dev/null
 select set_config('request.jwt.claim.sub', :'ana', false) \g /dev/null
 select public.excluir_gasto(:'gasto1') \g /dev/null

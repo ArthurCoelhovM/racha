@@ -3,17 +3,19 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { DicaInstalar } from '@/components/dica-instalar';
+import { GruposQueDeixei } from '@/components/inicio/grupos-que-deixei';
 import { Aviso, Botao, BotaoFlutuante, Carregando, Linha, Tela, Texto, Vazio } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { textoDoErro, useAtualizarAoFocar, useInicio, usePuxar } from '@/lib/consultas';
 import { dec, Decimal, ehZero, reaisCobrar } from '@/lib/dinheiro';
-import { pegarCodigoPendente } from '@/lib/sessao';
+import { pegarCodigoPendente, useSessao } from '@/lib/sessao';
 import type { ResumoGrupo } from '@/lib/tipos';
 
 export default function Grupos() {
   const tema = useTema();
   const consulta = useInicio();
+  const { usuarioId } = useSessao();
   const dados = consulta.data;
   const erro = textoDoErro(consulta.error);
   const carregando = consulta.isPending && !erro;
@@ -93,6 +95,8 @@ export default function Grupos() {
       {grupos.map((g) => (
         <CartaoGrupo key={g.grupo_id} grupo={g} />
       ))}
+
+      <GruposQueDeixei eu={usuarioId ?? ''} />
 
       {grupos.length > 0 ? (
         <Botao titulo="Entrar com código" variante="secundario" aoPressionar={() => router.push('/entrar-grupo')} />

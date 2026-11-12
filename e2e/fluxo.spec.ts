@@ -79,7 +79,7 @@ test('grupo, gastos, pagamento, histórico e saída de um membro', async ({ page
   await expect(texto(page, 'Bia (saiu)')).toBeVisible();
   await botao(page, 'Salvar alterações').click();
   await aba(page, 'Dívidas').click();
-  await expect(texto(page, 'Bia deve a você')).toBeVisible();
+  await expect(texto(page, 'Bia (saiu) deve a você')).toBeVisible();
 
   // grupo de que a Ana não participa
   const outro = await api<string>('/rest/v1/rpc/criar_grupo', { p_nome: 'Só da Bia' }, bia.token);

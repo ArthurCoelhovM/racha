@@ -11,6 +11,9 @@ import type {
   Grupo,
   Item,
   Membro,
+  Papel,
+  PendenciaFora,
+  Permissoes,
   Recorrente,
   RegistroHistorico,
   ResumoGrupo,
@@ -49,13 +52,17 @@ function numerico(valor: Decimal): number {
 }
 
 // o banco guarda tipo, papel e frequência como texto com check; aqui eles voltam a ser os tipos do app
-type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas'> & { divisoes_permitidas: string[] };
+type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas' | 'permissoes'> & { divisoes_permitidas: string[]; permissoes: Json };
 function paraGrupo(g: LinhaGrupo): Grupo {
-  return { ...g, divisoes_permitidas: g.divisoes_permitidas as TipoDivisao[] };
+  return {
+    ...g,
+    divisoes_permitidas: g.divisoes_permitidas as TipoDivisao[],
+    permissoes: g.permissoes as Permissoes,
+  };
 }
 
 // prettier-ignore
-const CAMPOS_GASTO = 'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, pagadores:gasto_pagadores(usuario_id, valor::text), divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text)';
+const CAMPOS_GASTO = 'id, grupo_id, descricao, valor_total::text, data, tipo_divisao, itens, criado_por, criado_em, recorrente_id, pagadores:gasto_pagadores(usuario_id, valor::text), divisoes:gasto_divisoes(usuario_id, parametro::text, valor::text), dividas(devedor, credor)';
 
 type LinhaGasto = Omit<Gasto, 'tipo_divisao' | 'itens'> & { tipo_divisao: string; itens: Json | null };
 function paraGasto(g: LinhaGasto): Gasto {
@@ -77,7 +84,7 @@ export async function buscarGrupo(id: string): Promise<Grupo> {
   const grupo = semErro(
     await supabase
       .from('grupos')
-      .select('id, nome, cor, abatimento, divisoes_permitidas, lembrete_dias, codigo_convite, criado_por')
+      .select('id, nome, cor, abatimento, divisoes_permitidas, lembrete_dias, criado_por, permissoes')
       .eq('id', id)
       .maybeSingle(),
   );
@@ -95,7 +102,7 @@ export async function listarMembros(grupoId: string): Promise<Membro[]> {
   );
   return dados.map((m) => ({
     usuario_id: m.usuario_id,
-    papel: m.papel as Membro['papel'],
+    papel: m.papel as Papel,
     ativo: m.ativo,
     perfil: m.perfil ?? { id: m.usuario_id, nome: 'Alguém' },
   }));
@@ -186,17 +193,52 @@ export async function criarGrupo(g: NovoGrupo): Promise<string> {
 
 export async function atualizarGrupo(id: string, g: NovoGrupo): Promise<void> {
   semErro(
-    await supabase
-      .from('grupos')
-      .update({
-        nome: g.nome,
-        cor: g.cor,
-        abatimento: g.abatimento,
-        divisoes_permitidas: g.divisoes,
-        lembrete_dias: g.lembreteDias,
-      })
-      .eq('id', id),
+    await supabase.rpc('atualizar_grupo', {
+      p_grupo: id,
+      p_nome: g.nome,
+      p_cor: g.cor,
+      p_abatimento: g.abatimento,
+      p_divisoes: g.divisoes,
+      p_lembrete_dias: g.lembreteDias,
+    }),
   );
+}
+
+export async function definirPermissoes(grupoId: string, permissoes: Partial<Permissoes>): Promise<void> {
+  semErro(await supabase.rpc('definir_permissoes', { p_grupo: grupoId, p_permissoes: permissoes as Json }));
+}
+
+export async function definirPapel(grupoId: string, usuarioId: string, papel: 'admin' | 'membro'): Promise<void> {
+  semErro(await supabase.rpc('definir_papel', { p_grupo: grupoId, p_usuario: usuarioId, p_papel: papel }));
+}
+
+export async function passarDono(grupoId: string, usuarioId: string): Promise<void> {
+  semErro(await supabase.rpc('passar_dono', { p_grupo: grupoId, p_usuario: usuarioId }));
+}
+
+export async function removerMembro(grupoId: string, usuarioId: string): Promise<void> {
+  semErro(await supabase.rpc('remover_membro', { p_grupo: grupoId, p_usuario: usuarioId }));
+}
+
+export async function codigoDoGrupo(grupoId: string): Promise<string> {
+  return checar(await supabase.rpc('codigo_do_grupo', { p_grupo: grupoId }));
+}
+
+export async function pendenciasDeGruposQueSai(): Promise<PendenciaFora[]> {
+  return checar(await supabase.rpc('pendencias_de_grupos_que_sai')) as PendenciaFora[];
+}
+
+// tudo o que aconteceu com um gasto: criação, edições, exclusão e pagamentos ligados a ele
+export async function historicoDoGasto(grupoId: string, gastoId: string): Promise<RegistroHistorico[]> {
+  return checar(
+    await supabase
+      .from('historico')
+      .select('id, usuario_id, entidade, acao, registro_id, antes, depois, criado_em')
+      .eq('grupo_id', grupoId)
+      .or(`registro_id.eq.${gastoId},depois->>gasto_id.eq.${gastoId},antes->>gasto_id.eq.${gastoId}`)
+      .order('criado_em', { ascending: true })
+      .limit(100),
+  ) as RegistroHistorico[];
 }
 
 export async function entrarNoGrupo(codigo: string): Promise<string> {

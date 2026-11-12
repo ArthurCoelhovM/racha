@@ -71,7 +71,8 @@ jobs:
 
   ponta_a_ponta:
     name: Ponta a ponta (navegador + Supabase local)
-    runs-on: ubuntu-latest
+    # o Playwright 1.56 ainda não instala o Chromium no Ubuntu 26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

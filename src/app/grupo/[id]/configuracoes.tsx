@@ -2,12 +2,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
+import { MembrosEPapeis } from '@/components/configuracoes/membros-e-papeis';
 import { FormularioGrupo } from '@/components/formulario-grupo';
 import { Aviso, Botao, Carregando, Linha, Separador, Tela, Texto } from '@/components/ui';
 import { espaco } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { atualizarGrupo, listarPendencias, mensagemDeErro, sairDoGrupo } from '@/lib/api';
-import { textoDoErro, useGrupo, useInvalidarGrupo } from '@/lib/consultas';
+import { textoDoErro, useGrupo, useInvalidarGrupo, useMembros } from '@/lib/consultas';
+import { meuPapel, pode, quemPode } from '@/lib/permissoes';
 import { reais } from '@/lib/dinheiro';
 import { resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
@@ -15,10 +17,15 @@ import { useSessao } from '@/lib/sessao';
 export default function Configuracoes() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const consulta = useGrupo(id);
+  const membros = useMembros(id);
+  const { usuarioId } = useSessao();
   const grupo = consulta.data;
-  const erro = textoDoErro(consulta.error);
-  const carregando = consulta.isPending && !erro;
+  const erro = textoDoErro(consulta.error ?? membros.error);
+  const carregando = (consulta.isPending || membros.isPending) && !erro;
   const invalidar = useInvalidarGrupo();
+  const eu = usuarioId ?? '';
+  const papel = membros.data ? meuPapel(membros.data, eu) : null;
+  const podeMudar = !!grupo && pode(grupo, papel, 'mudar_configuracoes');
   const [erroSair, setErroSair] = useState<string | null>(null);
 
   async function sair() {
@@ -35,7 +42,10 @@ export default function Configuracoes() {
   return (
     <Tela>
       {erro ? <Aviso texto={erro} /> : null}
-      {grupo ? (
+      {grupo && !podeMudar ? (
+        <Aviso tipo="info" texto={`Neste grupo, mudar as configurações é com ${quemPode(grupo, 'mudar_configuracoes')}.`} />
+      ) : null}
+      {grupo && podeMudar ? (
         <FormularioGrupo
           tituloBotao="Salvar configurações"
           inicial={{
@@ -54,10 +64,17 @@ export default function Configuracoes() {
         />
       ) : null}
 
+      {grupo && membros.data ? (
+        <>
+          <Separador />
+          <MembrosEPapeis grupo={grupo} membros={membros.data} eu={eu} papel={papel} aoMudar={() => invalidar(id)} />
+        </>
+      ) : null}
+
       <Separador />
       <Texto variante="suave">
-        Ao sair, o grupo some da sua lista. Dívidas em aberto continuam registradas para os outros membros. Se você for
-        o dono, o membro mais antigo passa a ser o dono.
+        Ao sair, o grupo some da sua lista, mas o que você ainda deve ou tem a receber continua aparecendo na sua tela
+        inicial. Se você for o dono, um admin (ou o membro mais antigo) passa a ser o dono.
       </Texto>
       {erroSair ? <Aviso texto={erroSair} /> : null}
       <Botao

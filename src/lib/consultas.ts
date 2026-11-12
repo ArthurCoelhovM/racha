@@ -13,9 +13,11 @@ import { AppState, Platform } from 'react-native';
 import {
   buscarGasto,
   buscarGrupo,
+  codigoDoGrupo,
   contarAvisosNaoLidos,
   contarGastos,
   desfazerPagamento,
+  historicoDoGasto,
   lancarMeusRecorrentes,
   listarAvisos,
   listarHistorico,
@@ -26,6 +28,7 @@ import {
   marcarPago,
   mensagemDeErro,
   paginaDeGastos,
+  pendenciasDeGruposQueSai,
 } from './api';
 import type { Pendencia } from './saldos';
 
@@ -56,7 +59,10 @@ export const chaves = {
   totalGastos: (id: string) => ['grupo', id, 'total-gastos'] as const,
   historico: (id: string) => ['grupo', id, 'historico'] as const,
   recorrentes: (id: string) => ['grupo', id, 'recorrentes'] as const,
+  codigo: (id: string) => ['grupo', id, 'codigo'] as const,
   gasto: (id: string) => ['gasto', id] as const,
+  historicoDoGasto: (id: string) => ['gasto', id, 'historico'] as const,
+  fora: ['fora'] as const,
 };
 
 // ao voltar para uma tela, atualiza o que estiver velho (não na primeira abertura)
@@ -128,6 +134,22 @@ export function useRecorrentes(id: string) {
   return useQuery({ queryKey: chaves.recorrentes(id), queryFn: () => listarRecorrentes(id) });
 }
 
+export function useCodigo(id: string, habilitado: boolean) {
+  return useQuery({ queryKey: chaves.codigo(id), queryFn: () => codigoDoGrupo(id), enabled: habilitado });
+}
+
+export function usePendenciasFora() {
+  return useQuery({ queryKey: chaves.fora, queryFn: pendenciasDeGruposQueSai });
+}
+
+export function useHistoricoDoGasto(grupoId: string, gastoId: string | undefined) {
+  return useQuery({
+    queryKey: chaves.historicoDoGasto(gastoId ?? ''),
+    queryFn: () => historicoDoGasto(grupoId, gastoId!),
+    enabled: !!gastoId,
+  });
+}
+
 export function useGasto(id: string | undefined) {
   return useQuery({
     queryKey: chaves.gasto(id ?? ''),
@@ -143,7 +165,9 @@ export function useInvalidarGrupo() {
     (grupoId: string) =>
       Promise.all([
         cliente.invalidateQueries({ queryKey: ['grupo', grupoId] }),
+        cliente.invalidateQueries({ queryKey: ['gasto'] }),
         cliente.invalidateQueries({ queryKey: chaves.inicio }),
+        cliente.invalidateQueries({ queryKey: chaves.fora }),
       ]),
     [cliente],
   );

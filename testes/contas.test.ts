@@ -46,12 +46,40 @@ test('cobrança arredonda para cima e ignora resíduos', () => {
   assert.equal(reais(new Decimal('1234.5')), 'R$ 1.234,50');
 });
 
-test('divisão igual com dízima fecha o total exato', () => {
-  const r = calcularDivisao('igual', new Decimal(100), ['a', 'b', 'c'], { ...vazio, selecionados: ['a', 'b', 'c'] });
+test('divisão igual em centavos: o centavo que sobra fica com quem pagou', () => {
+  const r = calcularDivisao('igual', new Decimal(100), ['a', 'b', 'c'], { ...vazio, selecionados: ['a', 'b', 'c'] }, [
+    'b',
+  ]);
   assert.equal(r.erro, null);
-  assert.equal(r.partes.length, 3);
+  assert.deepEqual(
+    r.partes.map((p) => p.valor.toString()),
+    ['33.33', '33.34', '33.33'],
+  );
   assert.ok(soma(r.partes).eq(100));
-  assert.equal(r.partes[1].valor.toString(), '33.333333333333333333');
+});
+
+test('sem pagador entre os que dividem, os centavos vão na ordem', () => {
+  const r = calcularDivisao('igual', new Decimal('0.05'), ['a', 'b', 'c'], { ...vazio, selecionados: ['a', 'b', 'c'] });
+  assert.deepEqual(
+    r.partes.map((p) => p.valor.toString()),
+    ['0.02', '0.02', '0.01'],
+  );
+});
+
+test('cotas e porcentagens também fecham em centavos', () => {
+  const r = calcularDivisao('cotas', new Decimal('100.01'), ['a', 'b', 'c'], { ...vazio, cotas: { a: '1', b: '1', c: '2' } }, [
+    'c',
+  ]);
+  assert.deepEqual(
+    r.partes.map((p) => p.valor.toString()),
+    ['25', '25', '50.01'],
+  );
+  const p = calcularDivisao('porcentagem', new Decimal(10), ['a', 'b', 'c'], {
+    ...vazio,
+    porcentagens: { a: '33,33', b: '33,33', c: '33,34' },
+  });
+  assert.ok(soma(p.partes).eq(10));
+  assert.ok(p.partes.every((x) => x.valor.decimalPlaces() <= 2));
 });
 
 test('valor exato avisa quanto falta', () => {
@@ -88,6 +116,17 @@ test('por item soma o que cada um consumiu', () => {
     { descricao: 'Cerveja', valor: '30', participantes: ['a', 'b'] },
     { descricao: 'Refri', valor: '10', participantes: ['c'] },
   ];
+  const quebrado = calcularDivisao(
+    'itens',
+    new Decimal(10),
+    ['a', 'b', 'c'],
+    { ...vazio, itens: [{ descricao: 'Pão', valor: '10', participantes: ['a', 'b', 'c'] }] },
+    ['c'],
+  );
+  assert.deepEqual(
+    quebrado.partes.map((p) => p.valor.toString()),
+    ['3.33', '3.33', '3.34'],
+  );
   const r = calcularDivisao('itens', new Decimal(40), ['a', 'b', 'c'], { ...vazio, itens });
   assert.equal(r.erro, null);
   assert.deepEqual(

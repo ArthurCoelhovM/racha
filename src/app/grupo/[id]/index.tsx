@@ -28,6 +28,7 @@ import {
 } from '@/lib/consultas';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
 import { reais } from '@/lib/dinheiro';
+import { meuPapel, pode } from '@/lib/permissoes';
 import { resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { useSessao } from '@/lib/sessao';
 import type { Recorrente } from '@/lib/tipos';
@@ -64,7 +65,8 @@ export default function TelaGrupo() {
 
   const nomes = useMemo(() => {
     const mapa = new Map<string, string>();
-    for (const m of membros.data ?? []) mapa.set(m.usuario_id, m.perfil.nome || 'Alguém');
+    // quem saiu continua aparecendo nas dívidas, marcado como "(saiu)"
+    for (const m of membros.data ?? []) mapa.set(m.usuario_id, `${m.perfil.nome || 'Alguém'}${m.ativo ? '' : ' (saiu)'}`);
     return mapa;
   }, [membros.data]);
 
@@ -92,6 +94,9 @@ export default function TelaGrupo() {
   const listaPendencias = pendencias.data ?? [];
   const listaGastos = gastos.data?.pages.flat() ?? [];
   const nome = (u: string) => (u === eu ? 'Você' : (nomes.get(u) ?? 'Alguém'));
+  const papel = meuPapel(membros.data, eu);
+  const podeRegistrar = pode(g, papel, 'registrar_gastos');
+  const podeConvidar = pode(g, papel, 'convidar_membros');
   const { voceDeve, teDevem } = resumoDoUsuario(listaPendencias, eu);
   const erroDasListas = textoDoErro(pendencias.error ?? gastos.error ?? historico.error ?? recorrentes.error);
 
@@ -139,23 +144,27 @@ export default function TelaGrupo() {
         aoAtualizar={puxar}
         atualizando={puxando}
         sobreposto={
-          <BotaoFlutuante
-            titulo="+ Gasto"
-            aoPressionar={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id } })}
-          />
+          podeRegistrar ? (
+            <BotaoFlutuante
+              titulo="+ Gasto"
+              aoPressionar={() => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id } })}
+            />
+          ) : undefined
         }>
         <Stack.Screen
           options={{
             title: g.nome,
             headerRight: () => (
               <Linha style={{ gap: 16, paddingHorizontal: 8 }}>
-                <Pressable
-                  hitSlop={10}
-                  onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: g.id } })}>
-                  <Texto variante="forte" cor={tema.primaria}>
-                    Convidar
-                  </Texto>
-                </Pressable>
+                {podeConvidar ? (
+                  <Pressable
+                    hitSlop={10}
+                    onPress={() => router.push({ pathname: '/grupo/[id]/convite', params: { id: g.id } })}>
+                    <Texto variante="forte" cor={tema.primaria}>
+                      Convidar
+                    </Texto>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   hitSlop={10}
                   onPress={() => router.push({ pathname: '/grupo/[id]/configuracoes', params: { id: g.id } })}>
@@ -233,6 +242,7 @@ export default function TelaGrupo() {
             ) : (
               <ListaDeGastos
                 gastos={listaGastos}
+                pendencias={listaPendencias}
                 total={totalGastos.data ?? listaGastos.length}
                 eu={eu}
                 nome={nome}

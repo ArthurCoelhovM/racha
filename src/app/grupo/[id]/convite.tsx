@@ -7,27 +7,42 @@ import { Platform, Share, StyleSheet, View } from 'react-native';
 import { Aviso, Botao, Carregando, Cartao, Tela, Texto } from '@/components/ui';
 import { useTema } from '@/hooks/use-tema';
 import { mensagemDeErro, novoCodigoConvite } from '@/lib/api';
-import { chaves, textoDoErro, useGrupo } from '@/lib/consultas';
+import { chaves, textoDoErro, useCodigo, useGrupo, useMembros } from '@/lib/consultas';
+import { meuPapel, pode, quemPode } from '@/lib/permissoes';
+import { useSessao } from '@/lib/sessao';
 import { urlDoSite } from '@/lib/supabase';
 
 export default function Convite() {
   const tema = useTema();
   const { id, novo } = useLocalSearchParams<{ id: string; novo?: string }>();
   const consulta = useGrupo(id);
+  const membros = useMembros(id);
+  const { usuarioId } = useSessao();
   const cliente = useQueryClient();
   const grupo = consulta.data;
-  const erro = textoDoErro(consulta.error);
-  const carregando = consulta.isPending && !erro;
+  const podeConvidar = !!grupo && !!membros.data && pode(grupo, meuPapel(membros.data, usuarioId ?? ''), 'convidar_membros');
+  const codigoConsulta = useCodigo(id, podeConvidar);
+  const codigo = codigoConsulta.data;
+  const erro = textoDoErro(consulta.error ?? membros.error ?? codigoConsulta.error);
+  const carregando = (consulta.isPending || membros.isPending || (podeConvidar && codigoConsulta.isPending)) && !erro;
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro' } | null>(null);
   const [gerando, setGerando] = useState(false);
 
   if (carregando) return <Carregando />;
   if (!grupo) return <Tela>{erro ? <Aviso texto={erro} /> : null}</Tela>;
+  if (!podeConvidar || !codigo) {
+    return (
+      <Tela>
+        {erro ? <Aviso texto={erro} /> : null}
+        <Aviso tipo="info" texto={`Neste grupo, convidar pessoas é com ${quemPode(grupo, 'convidar_membros')}.`} />
+      </Tela>
+    );
+  }
 
-  const link = urlDoSite(`/convite/${grupo.codigo_convite}`);
+  const link = urlDoSite(`/convite/${codigo}`);
   const mensagem = link
-    ? `Entra no grupo "${grupo.nome}" no Super Organizador 3021: ${link} (ou use o código ${grupo.codigo_convite})`
-    : `Entra no grupo "${grupo.nome}" no Super Organizador 3021 com o código ${grupo.codigo_convite}`;
+    ? `Entra no grupo "${grupo.nome}" no Super Organizador 3021: ${link} (ou use o código ${codigo})`
+    : `Entra no grupo "${grupo.nome}" no Super Organizador 3021 com o código ${codigo}`;
 
   async function copiar(texto: string, oQue: string) {
     await Clipboard.setStringAsync(texto);
@@ -46,8 +61,8 @@ export default function Convite() {
     if (!grupo) return;
     setGerando(true);
     try {
-      const codigo = await novoCodigoConvite(id);
-      cliente.setQueryData(chaves.grupo(id), { ...grupo, codigo_convite: codigo });
+      const novoCodigo = await novoCodigoConvite(id);
+      cliente.setQueryData(chaves.codigo(id), novoCodigo);
       setAviso({ texto: 'Código novo gerado. O antigo parou de funcionar.', tipo: 'ok' });
     } catch (e) {
       setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });
@@ -64,7 +79,7 @@ export default function Convite() {
 
       <Cartao style={{ alignItems: 'center', paddingVertical: 28 }}>
         <Texto variante="rotulo">Código do grupo</Texto>
-        <Texto style={[estilos.codigo, { color: grupo.cor }]}>{grupo.codigo_convite}</Texto>
+        <Texto style={[estilos.codigo, { color: grupo.cor }]}>{codigo}</Texto>
         <Texto variante="suave" style={{ textAlign: 'center' }}>
           Quem tiver o app toca em &quot;Entrar com código&quot; e digita esse código.
         </Texto>
@@ -82,7 +97,7 @@ export default function Convite() {
       {aviso ? <Aviso texto={aviso.texto} tipo={aviso.tipo} /> : null}
 
       {podeCompartilhar ? <Botao titulo="Compartilhar convite" aoPressionar={compartilhar} /> : null}
-      <Botao titulo="Copiar código" variante="secundario" aoPressionar={() => copiar(grupo.codigo_convite, 'Código')} />
+      <Botao titulo="Copiar código" variante="secundario" aoPressionar={() => copiar(codigo, 'Código')} />
       {link ? <Botao titulo="Copiar link" variante="secundario" aoPressionar={() => copiar(link, 'Link')} /> : null}
       <Botao
         titulo="Gerar código novo"

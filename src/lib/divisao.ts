@@ -15,8 +15,6 @@ export type ResultadoDivisao = { partes: Parte[]; erro: string | null };
 
 export type Pagador = { usuario_id: string; valor: Decimal };
 
-const CASAS = 18;
-
 function resultado(partes: Parte[], erro: string | null = null): ResultadoDivisao {
   return { partes, erro };
 }
@@ -25,15 +23,27 @@ function temMaisDeDuasCasas(valor: Decimal) {
   return valor.decimalPlaces() > 2;
 }
 
-// trunca em 18 casas e soma o resíduo na primeira parte, para o total bater exatamente
-function fechar(partes: Parte[], total: Decimal): Parte[] {
-  const truncadas = partes.map((p) => ({ ...p, valor: p.valor.toDecimalPlaces(CASAS, Decimal.ROUND_DOWN) }));
-  const soma = truncadas.reduce((s, p) => s.plus(p.valor), new Decimal(0));
-  const resto = total.minus(soma);
-  if (truncadas.length > 0 && !resto.isZero()) {
-    truncadas[0] = { ...truncadas[0], valor: truncadas[0].valor.plus(resto) };
+// Reparte em centavos: cada um fica com o piso da parte exata, e os centavos que sobram vão
+// primeiro para quem pagou (na ordem de `preferidos`) e depois para a maior fração.
+// É a mesma regra do banco (partes_em_centavos): as partes somam o total exato.
+export function emCentavos(partes: Parte[], total: Decimal, preferidos: string[] = []): Parte[] {
+  const pisos = partes.map((p, ordem) => {
+    const piso = p.valor.toDecimalPlaces(2, Decimal.ROUND_DOWN);
+    const preferencia = preferidos.indexOf(p.usuario_id);
+    return { p, piso, fracao: p.valor.minus(piso), ordem, preferencia: preferencia < 0 ? Infinity : preferencia };
+  });
+  const soma = pisos.reduce((s, x) => s.plus(x.piso), new Decimal(0));
+  let centavos = Math.max(0, total.toDecimalPlaces(2).minus(soma).times(100).round().toNumber());
+  const fila = [...pisos].sort(
+    (x, y) => x.preferencia - y.preferencia || y.fracao.comparedTo(x.fracao) || x.ordem - y.ordem,
+  );
+  const extra = new Set<number>();
+  for (const x of fila) {
+    if (centavos <= 0) break;
+    extra.add(x.ordem);
+    centavos--;
   }
-  return truncadas;
+  return pisos.map((x) => ({ ...x.p, valor: extra.has(x.ordem) ? x.piso.plus('0.01') : x.piso }));
 }
 
 export function totalDosItens(itens: Item[]): Decimal {
@@ -64,12 +74,15 @@ function porPeso(
   return { partes, soma, erro: null };
 }
 
+// preferidos: quem pagou, de quem pagou mais para quem pagou menos (fica com os centavos que sobram)
 export function calcularDivisao(
   tipo: TipoDivisao,
   total: Decimal,
   membros: string[],
   entrada: EntradaDivisao,
+  preferidos: string[] = [],
 ): ResultadoDivisao {
+  const fechar = (partes: Parte[], valor: Decimal) => emCentavos(partes, valor, preferidos);
   if (total.lte(0)) return resultado([], 'Informe o valor do gasto');
 
   if (tipo === 'igual') {
@@ -124,7 +137,7 @@ export function calcularDivisao(
     return resultado(fechar(partes, total));
   }
 
-  // por item: cada item é dividido igualmente entre quem participa dele
+  // por item: cada item é dividido igualmente entre quem participa dele, já em centavos
   if (entrada.itens.length === 0) return resultado([], 'Adicione os itens da compra');
   const acumulado = new Map<string, Decimal>();
   for (let i = 0; i < entrada.itens.length; i++) {
@@ -136,7 +149,13 @@ export function calcularDivisao(
     const quem = item.participantes.filter((u) => membros.includes(u));
     if (quem.length === 0) return resultado([], `Escolha quem participa de ${nome}`);
     const cada = v.div(quem.length);
-    for (const u of quem) acumulado.set(u, (acumulado.get(u) ?? new Decimal(0)).plus(cada));
+    const doItem = fechar(
+      quem.map((u) => ({ usuario_id: u, parametro: null, valor: cada })),
+      v,
+    );
+    for (const parte of doItem) {
+      acumulado.set(parte.usuario_id, (acumulado.get(parte.usuario_id) ?? new Decimal(0)).plus(parte.valor));
+    }
   }
   const somaItens = totalDosItens(entrada.itens);
   if (!somaItens.eq(total)) {
@@ -145,7 +164,12 @@ export function calcularDivisao(
   const partes = membros
     .filter((u) => acumulado.has(u))
     .map((u) => ({ usuario_id: u, parametro: null, valor: acumulado.get(u)! }));
-  return resultado(fechar(partes, total));
+  return resultado(partes);
+}
+
+// quem pagou, do maior valor para o menor: é quem fica com o centavo que sobra
+export function ordemDosPagadores(pagadores: Pagador[]): string[] {
+  return [...pagadores].sort((a, b) => b.valor.comparedTo(a.valor)).map((p) => p.usuario_id);
 }
 
 export function calcularPagadores(

@@ -345,6 +345,7 @@ export type Database = {
           id: string;
           lembrete_dias: number;
           nome: string;
+          permissoes: NonNullable<Json>;
         };
         ComputedFields: never;
         Insert: {
@@ -357,6 +358,7 @@ export type Database = {
           id?: string;
           lembrete_dias?: number;
           nome: string;
+          permissoes?: NonNullable<Json>;
         };
         Update: {
           abatimento?: boolean;
@@ -368,6 +370,7 @@ export type Database = {
           id?: string;
           lembrete_dias?: number;
           nome?: string;
+          permissoes?: NonNullable<Json>;
         };
         Relationships: [
           {
@@ -737,6 +740,19 @@ export type Database = {
     };
     Functions: {
       anonimizar_conta: { Args: { p_usuario: string }; Returns: undefined };
+      atualizar_grupo: {
+        Args: {
+          p_abatimento: boolean;
+          p_cor: string;
+          p_divisoes: string[];
+          p_grupo: string;
+          p_lembrete_dias: number;
+          p_nome: string;
+        };
+        Returns: undefined;
+      };
+      calcular_dividas: { Args: { p_gasto: string }; Returns: undefined };
+      codigo_do_grupo: { Args: { p_grupo: string }; Returns: string };
       compartilha_grupo: { Args: { outro: string }; Returns: boolean };
       criar_grupo: {
         Args: {
@@ -749,6 +765,8 @@ export type Database = {
         Returns: string;
       };
       criar_recorrente: { Args: { p: Json; p_frequencia: string; p_gasto?: string }; Returns: string };
+      definir_papel: { Args: { p_grupo: string; p_papel: string; p_usuario: string }; Returns: undefined };
+      definir_permissoes: { Args: { p_grupo: string; p_permissoes: Json }; Returns: undefined };
       dividas_em_aberto: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -774,8 +792,27 @@ export type Database = {
         Args: { p_de: string; p_gasto?: string; p_grupo: string; p_para: string; p_valor: number };
         Returns: string;
       };
+      meu_papel: { Args: { g: string }; Returns: string };
+      nivel_do_papel: { Args: { p: string }; Returns: number };
       novo_codigo_convite: { Args: { p_grupo: string }; Returns: string };
       parar_recorrente: { Args: { p_id: string }; Returns: undefined };
+      partes_em_centavos: { Args: { p_pagadores: Json; p_partes: Json; p_total: number }; Returns: Json };
+      passar_dono: { Args: { p_grupo: string; p_usuario: string }; Returns: undefined };
+      pendencias_de_grupos_que_sai: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          credor: string;
+          data: string;
+          descricao: string;
+          devedor: string;
+          gasto_id: string;
+          grupo_cor: string;
+          grupo_id: string;
+          grupo_nome: string;
+          outra_pessoa: string;
+          valor: string;
+        }[];
+      };
       pendencias_do_grupo: {
         Args: { p_abatimento?: boolean; p_grupo: string };
         Returns: {
@@ -797,6 +834,8 @@ export type Database = {
           valor: number;
         }[];
       };
+      permissoes_validas: { Args: { p: Json }; Returns: boolean };
+      pode: { Args: { acao: string; g: string }; Returns: boolean };
       proxima_ocorrencia: { Args: { d: string; dia: number; frequencia: string }; Returns: string };
       reais: { Args: { v: number }; Returns: string };
       recalcular_saldo_par: { Args: { c: string; d: string; g: string }; Returns: undefined };
@@ -810,6 +849,7 @@ export type Database = {
       };
       registrar_leitura_nfce: { Args: Record<PropertyKey, never>; Returns: undefined };
       remover_dispositivo: { Args: { p_identificador: string }; Returns: undefined };
+      remover_membro: { Args: { p_grupo: string; p_usuario: string }; Returns: undefined };
       resumo_meus_grupos: {
         Args: Record<PropertyKey, never>;
         Returns: {

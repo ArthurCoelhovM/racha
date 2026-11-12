@@ -19,8 +19,8 @@ set role authenticated;
 select set_config('request.jwt.claim.sub', :'lia', false) \g /dev/null
 select public.criar_grupo('Viagem', '#5B4CF0', true) as viagem \gset
 select public.criar_grupo('Casa nova', '#E8680A', false) as casa \gset
-select codigo_convite as cod_viagem from public.grupos where id = :'viagem' \gset
-select codigo_convite as cod_casa from public.grupos where id = :'casa' \gset
+select public.codigo_do_grupo(:'viagem') as cod_viagem \gset
+select public.codigo_do_grupo(:'casa') as cod_casa \gset
 
 select set_config('request.jwt.claim.sub', :'malu', false) \g /dev/null
 select public.entrar_no_grupo(:'cod_viagem') \g /dev/null
@@ -68,7 +68,7 @@ select testes.deve_falhar(format('select public.marcar_pago(%L, %L, %L, 0.01)', 
 -- ---------------------------------------------------------------
 -- Bug 6: tela inicial e tela do grupo somam as mesmas pendências
 -- ---------------------------------------------------------------
--- Casa nova, sem abatimento: dois gastos de 10 divididos por 3 -> duas dívidas de 3,333...
+-- Casa nova, sem abatimento: dois gastos de 10 divididos por 3 -> duas dívidas de 3,33 (Lia pagou e fica com 3,34)
 select set_config('request.jwt.claim.sub', :'lia', false) \g /dev/null
 select set_config('request.jwt.claim.sub', :'nina', false) \g /dev/null
 select public.entrar_no_grupo(:'cod_casa') \g /dev/null
@@ -98,12 +98,12 @@ declare
 begin
   assert (select count(*) from public.pendencias_do_grupo(casa) where devedor = '00000000-0000-0000-0000-000000000102') = 2,
     'sem abatimento, uma pendência por gasto';
-  assert (select sum(cobrar::numeric) from public.pendencias_do_grupo(casa) where devedor = '00000000-0000-0000-0000-000000000102') = 6.68,
-    'cada gasto é cobrado arredondado para cima';
-  assert (select voce_deve from public.resumo_meus_grupos() where grupo_id = casa) = 6.68,
+  assert (select sum(cobrar::numeric) from public.pendencias_do_grupo(casa) where devedor = '00000000-0000-0000-0000-000000000102') = 6.66,
+    'cada gasto é cobrado em centavos exatos';
+  assert (select voce_deve from public.resumo_meus_grupos() where grupo_id = casa) = 6.66,
     format('a tela inicial mostra o mesmo total: %s', (select voce_deve from public.resumo_meus_grupos() where grupo_id = casa));
   assert (select valor from public.pendencias_do_grupo(casa) where descricao = 'Pão' and devedor = '00000000-0000-0000-0000-000000000102')
-    = '3.333333333333333333', 'o valor exato vem em texto, sem perder casas';
+    = '3.33', 'a parte vem em centavos';
 end $$;
 
 -- sem abatimento: pagamento sem gasto quita os mais antigos primeiro (Pão, depois Leite)
@@ -115,11 +115,11 @@ begin
   assert not exists (select 1 from public.pendencias_do_grupo(casa) where descricao = 'Pão' and devedor = '00000000-0000-0000-0000-000000000102'),
     'o Pão foi quitado primeiro';
   assert (select valor::numeric from public.pendencias_do_grupo(casa) where descricao = 'Leite' and devedor = '00000000-0000-0000-0000-000000000102')
-    = 1.666666666666666666, 'o resto ficou no Leite';
+    = 1.66, 'o resto ficou no Leite';
 end $$;
 -- pagamento ligado a um gasto não passa do que falta nele
-select testes.deve_falhar(format('select public.marcar_pago(%L, %L, %L, 2, %L)', :'casa', :'malu', :'lia', :'leite'), 'passa do que está em aberto (R$ 1,67)') \g /dev/null
-select public.marcar_pago(:'casa', :'malu', :'lia', 1.666666666666666666, :'leite') \g /dev/null
+select testes.deve_falhar(format('select public.marcar_pago(%L, %L, %L, 2, %L)', :'casa', :'malu', :'lia', :'leite'), 'passa do que está em aberto (R$ 1,66)') \g /dev/null
+select public.marcar_pago(:'casa', :'malu', :'lia', 1.66, :'leite') \g /dev/null
 do $$ begin
   assert (select voce_deve from public.resumo_meus_grupos() where nome = 'Casa nova') = 0, 'Malu quitou a Casa nova';
 end $$;
@@ -220,7 +220,7 @@ end $$;
 -- Malu registrou o Jantar; Nina já saiu; Lia (dona) pode excluir qualquer gasto
 select set_config('request.jwt.claim.sub', :'malu', false) \g /dev/null
 update public.avisos set lido = true;
-select testes.deve_falhar(format('select public.excluir_gasto(%L)', :'passeio'), 'Só quem registrou') \g /dev/null
+select testes.deve_falhar(format('select public.excluir_gasto(%L)', :'passeio'), 'excluir gastos de outras pessoas') \g /dev/null
 
 -- edição que muda a parte da Malu: ela é avisada; edição só no nome não avisa
 select set_config('request.jwt.claim.sub', :'lia', false) \g /dev/null
@@ -251,7 +251,7 @@ end $$;
 select set_config('request.jwt.claim.sub', :'lia', false) \g /dev/null
 select public.excluir_gasto(:'passeio') \g /dev/null
 -- abatimento desligado e ligado: todo mundo é avisado
-update public.grupos set abatimento = false where id = :'viagem';
+select public.atualizar_grupo(id, nome, cor, false, divisoes_permitidas, lembrete_dias) from public.grupos where id = :'viagem' \g /dev/null
 
 select set_config('request.jwt.claim.sub', :'malu', false) \g /dev/null
 do $$ begin
@@ -267,12 +267,14 @@ end $$;
 -- Bug 9: trocar o código fica no histórico como troca de código; salvar sem mudar nada não registra
 -- ---------------------------------------------------------------
 select set_config('request.jwt.claim.sub', :'lia', false) \g /dev/null
-update public.grupos set nome = nome where id = :'viagem';
+select public.atualizar_grupo(id, nome, cor, abatimento, divisoes_permitidas, lembrete_dias) from public.grupos where id = :'viagem' \g /dev/null
 select public.novo_codigo_convite(:'viagem') \g /dev/null
 do $$ begin
   assert (select count(*) from public.historico where entidade = 'grupos') = 2, 'só o abatimento e a troca de código';
-  assert (select (antes ->> 'codigo_convite') <> (depois ->> 'codigo_convite') from public.historico
+  assert (select (depois ->> 'codigo_trocado')::boolean from public.historico
           where entidade = 'grupos' order by id desc limit 1), 'a última mudança é a do código';
+  assert not exists (select 1 from public.historico where entidade = 'grupos'
+                     and (antes ? 'codigo_convite' or depois ? 'codigo_convite')), 'o código não fica no histórico';
 end $$;
 
 -- ---------------------------------------------------------------

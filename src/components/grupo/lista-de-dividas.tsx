@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Avatar, Botao, Cartao, Linha, Separador, Texto, Vazio } from '@/components/ui';
 import { espaco } from '@/constants/tema';
-import { ehExato, reais, reaisExato } from '@/lib/dinheiro';
+import { reais } from '@/lib/dinheiro';
 import { diaCurto } from '@/lib/formatos';
 import type { Pendencia } from '@/lib/saldos';
 
@@ -53,7 +53,6 @@ function LinhaPendencia({
   carregando: boolean;
   aoPagar: () => void;
 }) {
-  const exato = ehExato(p.valor);
   return (
     <View style={estilos.linha}>
       <Linha>
@@ -71,10 +70,7 @@ function LinhaPendencia({
             </Texto>
           ) : null}
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Texto variante="subtitulo">{reais(p.cobrar)}</Texto>
-          {!exato ? <Texto variante="suave">exato {reaisExato(p.valor)}</Texto> : null}
-        </View>
+        <Texto variante="subtitulo">{reais(p.cobrar)}</Texto>
       </Linha>
       {euParticipo ? (
         <Botao

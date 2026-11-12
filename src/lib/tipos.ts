@@ -13,6 +13,17 @@ export type Perfil = {
   nome: string;
 };
 
+export type Papel = 'dono' | 'admin' | 'membro';
+
+export type Acao =
+  | 'registrar_gastos'
+  | 'editar_gastos_de_outros'
+  | 'mudar_configuracoes'
+  | 'convidar_membros'
+  | 'remover_membros';
+
+export type Permissoes = Record<Acao, Papel>;
+
 export type Grupo = {
   id: string;
   nome: string;
@@ -20,8 +31,8 @@ export type Grupo = {
   abatimento: boolean;
   divisoes_permitidas: TipoDivisao[];
   lembrete_dias: number;
-  codigo_convite: string;
   criado_por: string;
+  permissoes: Permissoes;
 };
 
 export type ResumoGrupo = {
@@ -36,7 +47,7 @@ export type ResumoGrupo = {
 
 export type Membro = {
   usuario_id: string;
-  papel: 'dono' | 'membro';
+  papel: Papel;
   ativo: boolean;
   perfil: Perfil;
 };
@@ -60,6 +71,21 @@ export type Gasto = {
   recorrente_id: string | null;
   pagadores: { usuario_id: string; valor: string }[];
   divisoes: { usuario_id: string; parametro: string | null; valor: string }[];
+  dividas: { devedor: string; credor: string }[];
+};
+
+// o que está em aberto num grupo que a pessoa deixou
+export type PendenciaFora = {
+  grupo_id: string;
+  grupo_nome: string;
+  grupo_cor: string;
+  devedor: string;
+  credor: string;
+  outra_pessoa: string;
+  gasto_id: string | null;
+  descricao: string | null;
+  data: string | null;
+  valor: string;
 };
 
 export type RegistroHistorico = {

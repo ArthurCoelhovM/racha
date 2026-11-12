@@ -29,7 +29,7 @@ end $$;
 set role authenticated;
 select set_config('request.jwt.claim.sub', :'eva', false) \g /dev/null
 select public.criar_grupo('Apê', '#07879E', false, array['igual', 'exato'], 1) as ape \gset
-select codigo_convite as cod_ape from public.grupos where id = :'ape' \gset
+select public.codigo_do_grupo(:'ape') as cod_ape \gset
 
 select set_config('request.jwt.claim.sub', :'fabio', false) \g /dev/null
 select public.entrar_no_grupo(:'cod_ape') \g /dev/null
@@ -94,14 +94,14 @@ declare
   fabio uuid := '00000000-0000-0000-0000-0000000000f1';
   ape uuid := (select id from public.grupos where nome = 'Apê');
 begin
-  assert (select total from public.dividas_em_aberto() where grupo_id = ape and usuario_id = fabio) = 15.01,
-    'Fábio deve só a água, já no valor de cobrança';
+  assert (select total from public.dividas_em_aberto() where grupo_id = ape and usuario_id = fabio) = 15.00,
+    'Fábio deve só a água; o centavo que sobra fica com a Eva, que pagou';
   assert public.gerar_lembretes() = 0, 'dívida recente ainda não gera lembrete';
 
   update public.gastos set criado_em = now() - interval '2 days' where grupo_id = ape;
   assert public.gerar_lembretes() = 1, 'agora gera';
-  assert (select corpo from public.avisos where usuario_id = fabio and tipo = 'lembrete') = 'Você ainda deve R$ 15,01 neste grupo.',
-    'lembrete com o valor arredondado para cima';
+  assert (select corpo from public.avisos where usuario_id = fabio and tipo = 'lembrete') = 'Você ainda deve R$ 15,00 neste grupo.',
+    'lembrete com o valor em centavos';
   assert public.gerar_lembretes() = 0, 'não repete antes do prazo do grupo';
 
   update public.avisos set criado_em = now() - interval '25 hours' where tipo = 'lembrete';
