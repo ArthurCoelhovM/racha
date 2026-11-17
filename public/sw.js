@@ -1,4 +1,4 @@
-// Service worker do Super Organizador 3021: só cuida das notificações push.
+// Service worker do Racha: só cuida das notificações push.
 // Não guarda nada em cache, para as atualizações do app chegarem sempre.
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -11,7 +11,7 @@ self.addEventListener('push', (evento) => {
   } catch {
     dados = { corpo: evento.data ? evento.data.text() : '' };
   }
-  const titulo = dados.titulo || 'Super Organizador 3021';
+  const titulo = dados.titulo || 'Racha';
   evento.waitUntil(
     self.registration.showNotification(titulo, {
       body: dados.corpo || '',

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Super Organizador 3021",
+    "name": "Racha",
     "slug": "super-organizador-3021",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,7 +23,7 @@
     "web": {
       "output": "single",
       "favicon": "./assets/images/favicon.png",
-      "name": "Super Organizador 3021",
+      "name": "Racha",
       "shortName": "Organizador",
       "lang": "pt-BR",
       "themeColor": "#5B4CF0",
@@ -43,7 +43,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "O Super Organizador usa a câmera para ler o QR code do cupom fiscal.",
+          "cameraPermission": "O Racha usa a câmera para ler o QR code do cupom fiscal.",
           "recordAudioAndroid": false
         }
       ],
@@ -56,8 +56,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "O Super Organizador usa suas fotos para anexar o comprovante de um gasto.",
-          "cameraPermission": "O Super Organizador usa a câmera para fotografar o comprovante de um gasto."
+          "photosPermission": "O Racha usa suas fotos para anexar o comprovante de um gasto.",
+          "cameraPermission": "O Racha usa a câmera para fotografar o comprovante de um gasto."
         }
       ]
     ],

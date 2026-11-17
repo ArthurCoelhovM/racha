@@ -3,19 +3,15 @@ import { StyleSheet, Text, View } from 'react-native';
 import { fontes } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 
-const coresAno = ['#E8680A', '#5B4CF0', '#D92657', '#12924B'];
-
+// "Racha" partido em dois, cada metade de uma cor: a conta dividida
 export function Marca({ tamanho = 34 }: { tamanho?: number }) {
   const tema = useTema();
   return (
-    <View style={estilos.linha}>
+    <View style={estilos.linha} accessibilityRole="header" accessibilityLabel="Racha">
       <Text style={[estilos.nome, { color: tema.texto, fontSize: tamanho }]}>
-        Super Organizador{' '}
-        {'3021'.split('').map((digito, i) => (
-          <Text key={i} style={{ color: coresAno[i] }}>
-            {digito}
-          </Text>
-        ))}
+        Ra
+        <Text style={{ color: '#5B4CF0' }}>cha</Text>
+        <Text style={{ color: '#E8680A' }}>.</Text>
       </Text>
     </View>
   );

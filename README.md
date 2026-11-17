@@ -1,4 +1,6 @@
-# Super Organizador 3021
+# Racha
+
+(antes chamado Super Organizador 3021; os nomes técnicos abaixo continuam os antigos)
 
 App para dividir contas, compras e gastos em grupo, parecido com Splitwise e Tricount, com uma regra diferente: **dívidas só se abatem entre duas pessoas**. Se A deve a B e B deve a C, A nunca paga para C.
 

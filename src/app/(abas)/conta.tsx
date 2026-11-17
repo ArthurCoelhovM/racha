@@ -28,7 +28,7 @@ export default function Conta() {
     setAviso(null);
     try {
       const dados = await meusDados();
-      await exportarCsv('meus-dados-super-organizador.json', JSON.stringify(dados, null, 2), 'application/json');
+      await exportarCsv('meus-dados-racha.json', JSON.stringify(dados, null, 2), 'application/json');
       setAviso({ texto: 'Seus dados foram exportados.', tipo: 'ok' });
     } catch (e) {
       setAviso({ texto: mensagemDeErro(e), tipo: 'erro' });

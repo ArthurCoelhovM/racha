@@ -42,8 +42,8 @@ export default function Convite() {
 
   const link = urlDoSite(`/convite/${codigo}`);
   const mensagem = link
-    ? `Entra no grupo "${grupo.nome}" no Super Organizador 3021: ${link} (ou use o código ${codigo})`
-    : `Entra no grupo "${grupo.nome}" no Super Organizador 3021 com o código ${codigo}`;
+    ? `Entra no grupo "${grupo.nome}" no Racha: ${link} (ou use o código ${codigo})`
+    : `Entra no grupo "${grupo.nome}" no Racha com o código ${codigo}`;
 
   async function copiar(texto: string, oQue: string) {
     await Clipboard.setStringAsync(texto);
