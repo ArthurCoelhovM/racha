@@ -85,7 +85,11 @@ test('conferir as contas, Pix, barra de baixo, pagamento parcial, sugestões e p
   await page.getByLabel('Fechar').locator('visible=true').last().click();
 
   // tocar na linha abre o extrato com a Bia
-  await page.getByLabel(/^Extrato com Bia/).locator('visible=true').first().click();
+  await page
+    .getByLabel(/^Extrato com Bia/)
+    .locator('visible=true')
+    .first()
+    .click();
   await expect(texto(page, 'As contas fecham')).toBeVisible();
   await expect(texto(page, 'Luz, R$ 150,00')).toBeVisible();
   await expect(texto(page, 'Mercado, R$ 100,00')).toBeVisible();
