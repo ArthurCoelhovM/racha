@@ -3,7 +3,8 @@ import { View } from 'react-native';
 
 import { Aviso, Avatar, Botao, Cartao, Ficha, Fichas, Linha, Separador, Texto } from '@/components/ui';
 import { espaco } from '@/constants/tema';
-import { definirPapel, definirPermissoes, mensagemDeErro, passarDono, removerMembro } from '@/lib/api';
+import { useDesfazer } from '@/components/desfazer';
+import { definirPapel, definirPermissoes, mensagemDeErro, passarDono, readmitirMembro, removerMembro } from '@/lib/api';
 import { ACOES, NIVEIS, NOME_DO_PAPEL, pode } from '@/lib/permissoes';
 import type { Acao, Grupo, Membro, Papel } from '@/lib/tipos';
 
@@ -21,6 +22,27 @@ export function MembrosEPapeis({ grupo, membros, eu, papel, aoMudar }: Props) {
   const souDono = papel === 'dono';
   const podeRemover = pode(grupo, papel, 'remover_membros');
   const ativos = membros.filter((m) => m.ativo);
+  const desfazer = useDesfazer();
+
+  async function remover(m: Membro, nome: string) {
+    setOcupado(`remover-${m.usuario_id}`);
+    setMensagem(null);
+    try {
+      await removerMembro(grupo.id, m.usuario_id);
+      await aoMudar();
+      desfazer({
+        texto: `${nome} saiu do grupo. O que estava em aberto continua nas dívidas.`,
+        desfazer: async () => {
+          await readmitirMembro(grupo.id, m.usuario_id);
+          await aoMudar();
+        },
+      });
+    } catch (e) {
+      setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' });
+    } finally {
+      setOcupado(null);
+    }
+  }
 
   async function fazer(chave: string, acao: () => Promise<void>, ok: string) {
     setOcupado(chave);
@@ -94,15 +116,8 @@ export function MembrosEPapeis({ grupo, membros, eu, papel, aoMudar }: Props) {
                         pequeno
                         variante="perigo"
                         titulo="Remover"
-                        confirmar={`Toque de novo para remover ${nome}`}
                         carregando={ocupado === `remover-${m.usuario_id}`}
-                        aoPressionar={() =>
-                          fazer(
-                            `remover-${m.usuario_id}`,
-                            () => removerMembro(grupo.id, m.usuario_id),
-                            `${nome} saiu do grupo. O que estava em aberto continua nas dívidas.`,
-                          )
-                        }
+                        aoPressionar={() => remover(m, nome)}
                       />
                     ) : null}
                   </Linha>

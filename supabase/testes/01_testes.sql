@@ -14,7 +14,7 @@ insert into auth.users (id, email, raw_user_meta_data) values
 
 do $$ begin
   assert (select count(*) from public.perfis) = 4, 'perfis criados pelo trigger';
-  assert (select nome from public.perfis where email = 'caio@exemplo.com') = 'caio', 'nome padrão vem do e-mail';
+  assert (select p.nome from public.perfis p join auth.users u on u.id = p.id where u.email = 'caio@exemplo.com') = 'caio', 'nome padrão vem do e-mail';
 end $$;
 
 -- ---------------------------------------------------------------

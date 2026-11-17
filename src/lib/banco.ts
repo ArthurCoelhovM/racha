@@ -400,6 +400,7 @@ export type Database = {
           divisoes_permitidas: string[];
           id: string;
           lembrete_dias: number;
+          metas: NonNullable<Json>;
           nome: string;
           permissoes: NonNullable<Json>;
         };
@@ -413,6 +414,7 @@ export type Database = {
           divisoes_permitidas?: string[];
           id?: string;
           lembrete_dias?: number;
+          metas?: NonNullable<Json>;
           nome: string;
           permissoes?: NonNullable<Json>;
         };
@@ -425,6 +427,7 @@ export type Database = {
           divisoes_permitidas?: string[];
           id?: string;
           lembrete_dias?: number;
+          metas?: NonNullable<Json>;
           nome?: string;
           permissoes?: NonNullable<Json>;
         };
@@ -585,6 +588,8 @@ export type Database = {
           entrou_em: string;
           grupo_id: string;
           papel: string;
+          removido_em: string | null;
+          removido_por: string | null;
           usuario_id: string;
         };
         ComputedFields: never;
@@ -595,6 +600,8 @@ export type Database = {
           entrou_em?: string;
           grupo_id: string;
           papel?: string;
+          removido_em?: string | null;
+          removido_por?: string | null;
           usuario_id: string;
         };
         Update: {
@@ -604,6 +611,8 @@ export type Database = {
           entrou_em?: string;
           grupo_id?: string;
           papel?: string;
+          removido_em?: string | null;
+          removido_por?: string | null;
           usuario_id?: string;
         };
         Relationships: [
@@ -700,7 +709,6 @@ export type Database = {
         Row: {
           chave_pix: string | null;
           criado_em: string;
-          email: string | null;
           id: string;
           nome: string;
           push_token: string | null;
@@ -709,7 +717,6 @@ export type Database = {
         Insert: {
           chave_pix?: string | null;
           criado_em?: string;
-          email?: string | null;
           id: string;
           nome?: string;
           push_token?: string | null;
@@ -717,7 +724,6 @@ export type Database = {
         Update: {
           chave_pix?: string | null;
           criado_em?: string;
-          email?: string | null;
           id?: string;
           nome?: string;
           push_token?: string | null;
@@ -880,6 +886,7 @@ export type Database = {
         };
         Returns: undefined;
       };
+      buscar_em_todos: { Args: { p_texto: string }; Returns: string[] };
       buscar_gastos: {
         Args: { p_categoria?: string; p_grupo: string; p_mes?: string; p_pessoa?: string; p_texto?: string };
         Returns: string[];
@@ -914,6 +921,7 @@ export type Database = {
         Returns: string;
       };
       definir_apelido: { Args: { p_apelido: string; p_grupo: string }; Returns: undefined };
+      definir_metas: { Args: { p_grupo: string; p_metas: Json }; Returns: undefined };
       definir_papel: { Args: { p_grupo: string; p_papel: string; p_usuario: string }; Returns: undefined };
       definir_permissoes: { Args: { p_grupo: string; p_permissoes: Json }; Returns: undefined };
       dividas_em_aberto: {
@@ -1001,6 +1009,7 @@ export type Database = {
       preencher_lancamento: { Args: { p: Json; p_pendente: string }; Returns: string };
       primeiros_passos: { Args: Record<PropertyKey, never>; Returns: Json };
       proxima_ocorrencia: { Args: { d: string; dia: number; frequencia: string }; Returns: string };
+      readmitir_membro: { Args: { p_grupo: string; p_usuario: string }; Returns: undefined };
       reais: { Args: { v: number }; Returns: string };
       recalcular_saldo_par: { Args: { c: string; d: string; g: string }; Returns: undefined };
       registrar_dispositivo: {
@@ -1027,6 +1036,7 @@ export type Database = {
           voce_deve: number;
         }[];
       };
+      retomar_recorrente: { Args: { p_id: string }; Returns: undefined };
       sair_do_grupo: { Args: { p_grupo: string }; Returns: undefined };
       salvar_gasto: { Args: { p: Json }; Returns: string };
       valor_a_cobrar: { Args: { v: number }; Returns: number };

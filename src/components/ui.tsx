@@ -22,7 +22,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { coresGrupo, corDaPessoa, espaco, fontes, larguraMaxima, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
-import { mascaraDinheiro } from '@/lib/dinheiro';
+import { Desenho, type TipoDesenho } from '@/components/desenhos';
+import { dec, mascaraDinheiro } from '@/lib/dinheiro';
+import { escalaDaFonte } from '@/lib/preferencias';
 
 // ---------- Texto ----------
 
@@ -56,14 +58,16 @@ export function Texto({
   );
 }
 
+// e: o tamanho de letra que a pessoa escolheu no navegador (no celular, o sistema já cuida disso)
+const e = escalaDaFonte;
 const estilosTexto = StyleSheet.create({
-  grande: { fontSize: 32, fontFamily: fontes.titulo, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
-  titulo: { fontSize: 25, fontFamily: fontes.titulo, letterSpacing: -0.3 },
-  subtitulo: { fontSize: 17, fontWeight: '700' },
-  corpo: { fontSize: 15, lineHeight: 21 },
-  forte: { fontSize: 15, lineHeight: 21, fontWeight: '600' },
-  suave: { fontSize: 13, lineHeight: 18 },
-  rotulo: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  grande: { fontSize: 32 * e, fontFamily: fontes.titulo, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  titulo: { fontSize: 25 * e, fontFamily: fontes.titulo, letterSpacing: -0.3 },
+  subtitulo: { fontSize: 17 * e, fontWeight: '700' },
+  corpo: { fontSize: 15 * e, lineHeight: 21 * e },
+  forte: { fontSize: 15 * e, lineHeight: 21 * e, fontWeight: '600' },
+  suave: { fontSize: 13 * e, lineHeight: 18 * e },
+  rotulo: { fontSize: 12 * e, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
 });
 
 // ---------- Tela ----------
@@ -74,12 +78,17 @@ export function Tela({
   atualizando = false,
   sobreposto,
   rolar = true,
+  topo,
+  fixo,
 }: {
   children: ReactNode;
   aoAtualizar?: () => void;
   atualizando?: boolean;
   sobreposto?: ReactNode;
   rolar?: boolean;
+  // com "fixo", o que vem em "topo" rola e some, e "fixo" fica preso no alto da tela (as abas do grupo)
+  topo?: ReactNode;
+  fixo?: ReactNode;
 }) {
   const tema = useTema();
   const insets = useSafeAreaInsets();
@@ -90,13 +99,20 @@ export function Tela({
       {rolar ? (
         <ScrollView
           keyboardShouldPersistTaps="handled"
+          stickyHeaderIndices={fixo ? [1] : undefined}
           contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
           refreshControl={
             aoAtualizar ? (
               <RefreshControl refreshing={atualizando} onRefresh={aoAtualizar} tintColor={tema.primaria} />
             ) : undefined
           }>
-          {conteudo}
+          {fixo ? <View style={[estilos.coluna, { paddingBottom: 0 }]}>{topo}</View> : null}
+          {fixo ? (
+            <View style={{ backgroundColor: tema.fundo }}>
+              <View style={[estilos.coluna, { paddingVertical: espaco.m, gap: espaco.m }]}>{fixo}</View>
+            </View>
+          ) : null}
+          {fixo ? <View style={[estilos.coluna, { paddingTop: espaco.m }]}>{children}</View> : conteudo}
         </ScrollView>
       ) : (
         conteudo
@@ -282,6 +298,12 @@ export function CoresDoGrupo({
   return <ContextoCores.Provider value={mapa}>{children}</ContextoCores.Provider>;
 }
 
+// a mesma cor que o avatar da pessoa usa neste grupo (para os gráficos)
+export function useCorDaPessoa() {
+  const mapa = useContext(ContextoCores);
+  return (id: string) => mapa.get(id)?.cor ?? corDaPessoa(id);
+}
+
 export function Avatar({ id, nome, tamanho = 32 }: { id: string; nome: string; tamanho?: number }) {
   const pessoa = useContext(ContextoCores).get(id);
   const inicial = ((pessoa?.nome || nome).trim()[0] ?? '?').toUpperCase();
@@ -433,9 +455,24 @@ export function Carregando() {
   );
 }
 
-export function Vazio({ titulo, texto, children }: { titulo: string; texto?: string; children?: ReactNode }) {
+export function Vazio({
+  titulo,
+  texto,
+  children,
+  desenho,
+  acao,
+  aoAcionar,
+}: {
+  titulo: string;
+  texto?: string;
+  children?: ReactNode;
+  desenho?: TipoDesenho;
+  acao?: string;
+  aoAcionar?: () => void;
+}) {
   return (
     <View style={estilos.vazio}>
+      {desenho ? <Desenho tipo={desenho} /> : null}
       <Texto variante="subtitulo" style={{ textAlign: 'center' }}>
         {titulo}
       </Texto>
@@ -443,6 +480,9 @@ export function Vazio({ titulo, texto, children }: { titulo: string; texto?: str
         <Texto variante="suave" style={{ textAlign: 'center' }}>
           {texto}
         </Texto>
+      ) : null}
+      {acao && aoAcionar ? (
+        <Botao titulo={acao} aoPressionar={aoAcionar} style={{ alignSelf: 'stretch', marginTop: espaco.m }} />
       ) : null}
       {children}
     </View>
@@ -475,8 +515,8 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
   },
   botaoPequeno: { minHeight: 36, paddingHorizontal: espaco.m + 4, borderRadius: raio.p },
-  textoBotao: { fontSize: 16, fontWeight: '700' },
-  textoBotaoPequeno: { fontSize: 14 },
+  textoBotao: { fontSize: 16 * e, fontWeight: '700' },
+  textoBotaoPequeno: { fontSize: 14 * e },
   campo: { gap: 6 },
   entrada: {
     minHeight: 48,
@@ -484,7 +524,7 @@ const estilos = StyleSheet.create({
     borderRadius: raio.m,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 16,
+    fontSize: 16 * e,
   },
   cartao: { borderRadius: raio.g, borderWidth: 1, padding: espaco.g, gap: espaco.m },
   avatar: { alignItems: 'center', justifyContent: 'center' },
@@ -522,6 +562,43 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+// ---------- Valor com centavos menores ----------
+
+const formatoInteiro = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+
+// "R$ 1.096,12" com o ",12" menor: lê mais rápido em telas pequenas
+export function Valor({
+  valor,
+  cor,
+  tamanho = 32,
+  prefixo,
+}: {
+  valor: string | number | { toString(): string };
+  cor?: string;
+  tamanho?: number;
+  prefixo?: string;
+}) {
+  const tema = useTema();
+  const d = dec(valor.toString()).toDecimalPlaces(2);
+  const negativo = d.isNeg();
+  const abs = d.abs();
+  const inteiro = formatoInteiro.format(Number(abs.floor().toString()));
+  const centavos = abs.minus(abs.floor()).times(100).round().toString().padStart(2, '0');
+  const base = { fontFamily: fontes.titulo, color: cor ?? tema.texto, fontVariant: ['tabular-nums' as const] };
+  return (
+    <Text
+      accessibilityLabel={`${prefixo ? `${prefixo} ` : ''}${negativo ? 'menos ' : ''}${inteiro} reais e ${centavos} centavos`}
+      numberOfLines={1}
+      style={[base, { fontSize: tamanho * e, letterSpacing: -0.5 }]}>
+      {prefixo ? `${prefixo} ` : ''}
+      <Text style={{ fontSize: tamanho * e * 0.55 }}>R$ </Text>
+      {negativo ? '−' : ''}
+      {inteiro}
+      <Text style={{ fontSize: tamanho * e * 0.6 }}>,{centavos}</Text>
+    </Text>
+  );
+}
 
 // ---------- Ícone ----------
 

@@ -19,6 +19,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ProvedorDesfazer } from '@/components/desfazer';
 import { Marca } from '@/components/marca';
 import { fontes } from '@/constants/tema';
 import { Botao, Texto } from '@/components/ui';
@@ -157,7 +158,9 @@ export default function Raiz() {
         {supabaseConfigurado ? (
           <QueryClientProvider client={clienteConsultas}>
             <ProvedorSessao>
-              <Navegacao />
+              <ProvedorDesfazer>
+                <Navegacao />
+              </ProvedorDesfazer>
             </ProvedorSessao>
           </QueryClientProvider>
         ) : (

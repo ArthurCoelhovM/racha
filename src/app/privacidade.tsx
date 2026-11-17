@@ -9,9 +9,10 @@ const secoes: { titulo: string; texto: string[] }[] = [
   {
     titulo: 'Quais dados o app guarda',
     texto: [
-      'Seu nome e e-mail, os grupos em que você está, os gastos, as divisões, os pagamentos marcados e os avisos.',
-      'A senha é guardada criptografada pelo serviço de login e ninguém consegue ler.',
-      'Se você ativar as notificações, guardamos o endereço do seu aparelho para entregar os avisos.',
+      'Da sua conta, só três coisas: e-mail, senha e nome. Não pedimos confirmação por e-mail, telefone, CPF nem endereço.',
+      'O e-mail e a senha ficam só no serviço de login; a senha é guardada criptografada e ninguém consegue ler.',
+      'Além disso, o que você mesmo registra nos grupos: gastos, divisões, pagamentos, comentários e avisos.',
+      'Só se você quiser: a chave Pix (para quem te deve pagar) e o endereço do aparelho, se ligar as notificações.',
       'O link de uma nota fiscal lida pelo QR code serve só para buscar os itens no site da Sefaz e não é guardado.',
     ],
   },
@@ -37,7 +38,7 @@ const secoes: { titulo: string; texto: string[] }[] = [
     titulo: 'Seus direitos (LGPD)',
     texto: [
       'Você pode ver e corrigir seus dados na tela da sua conta, exportar os gastos de um grupo em CSV e excluir a conta pelo próprio app.',
-      'Ao excluir a conta, seu nome, e-mail, aparelhos e avisos são apagados. Os gastos que você dividiu continuam no histórico do grupo como "Conta excluída", porque fazem parte das contas das outras pessoas.',
+      'Ao excluir a conta, seu nome, e-mail, senha, chave Pix, aparelhos e avisos são apagados. Os gastos que você dividiu continuam no histórico do grupo como "Conta excluída", porque fazem parte das contas das outras pessoas.',
     ],
   },
 ];
@@ -46,7 +47,7 @@ export default function Privacidade() {
   return (
     <Tela>
       <Texto variante="titulo">Política de privacidade</Texto>
-      <Texto variante="suave">Atualizada em 16/10/2026</Texto>
+      <Texto variante="suave">Atualizada em 17/11/2026</Texto>
       {secoes.map((s) => (
         <Cartao key={s.titulo}>
           <Texto variante="subtitulo">{s.titulo}</Texto>

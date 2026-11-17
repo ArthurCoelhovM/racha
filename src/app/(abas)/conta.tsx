@@ -8,6 +8,7 @@ import { exportarCsv } from '@/lib/csv';
 import { ativarPush, desativarPush, situacaoPush, type SituacaoPush } from '@/lib/push';
 import { useSessao } from '@/lib/sessao';
 import { supabase } from '@/lib/supabase';
+import { mudarCompacto, useCompacto } from '@/lib/preferencias';
 import { reverTutorial } from '@/lib/tutorial';
 
 export default function Conta() {
@@ -19,6 +20,7 @@ export default function Conta() {
   const [mudandoPush, setMudandoPush] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const compacto = useCompacto();
 
   // tudo o que o app guarda sobre você, num arquivo JSON (LGPD)
   async function exportar() {
@@ -124,6 +126,15 @@ export default function Conta() {
             <Texto variante="suave">{push?.motivo ?? 'Verificando…'}</Texto>
           </>
         )}
+      </Cartao>
+
+      <Cartao>
+        <Interruptor
+          titulo="Modo compacto"
+          descricao="Linhas mais baixas na lista de gastos, sem a linha de sua parte. Bom para quem tem muitos gastos."
+          valor={compacto}
+          aoMudar={mudarCompacto}
+        />
       </Cartao>
 
       {aviso ? <Aviso texto={aviso.texto} tipo={aviso.tipo} /> : null}

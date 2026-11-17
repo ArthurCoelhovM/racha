@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { Cartao, Separador, Texto } from '@/components/ui';
+import { Cartao, Separador, Texto, Valor } from '@/components/ui';
 import { espaco } from '@/constants/tema';
 import { dec, reais } from '@/lib/dinheiro';
 import { isoParaBr } from '@/lib/formatos';
@@ -15,7 +15,7 @@ export function DetalheDoGasto({ gasto, nome }: { gasto: Gasto; nome: (u: string
     <>
       <Cartao>
         <Texto variante="titulo">{gasto.descricao}</Texto>
-        <Texto variante="grande">{reais(dec(gasto.valor_total))}</Texto>
+        <Valor valor={dec(gasto.valor_total)} />
         <Texto variante="suave">
           {isoParaBr(gasto.data)} · divisão {tipo.toLowerCase()} · registrado por {nome(gasto.criado_por)}
         </Texto>

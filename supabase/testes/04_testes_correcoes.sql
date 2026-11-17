@@ -208,7 +208,7 @@ end $$;
 -- Bug 5: e-mail dos outros não aparece
 -- ---------------------------------------------------------------
 select set_config('request.jwt.claim.sub', :'malu', false) \g /dev/null
-select testes.deve_falhar('select email from public.perfis', 'permission denied') \g /dev/null
+select testes.deve_falhar('select email from public.perfis', 'email') \g /dev/null
 select testes.deve_falhar('select * from public.perfis', 'permission denied') \g /dev/null
 do $$ begin
   assert (select nome from public.perfis where id = '00000000-0000-0000-0000-000000000101') = 'Lia', 'o nome continua visível';

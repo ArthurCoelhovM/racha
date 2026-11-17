@@ -5,11 +5,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { DicaInstalar } from '@/components/dica-instalar';
 import { GruposQueDeixei } from '@/components/inicio/grupos-que-deixei';
 import { PrimeirosPassos } from '@/components/tutorial/primeiros-passos';
-import { Aviso, Botao, Esqueleto, Linha, Tela, Texto, Vazio } from '@/components/ui';
+import { Aviso, Botao, Esqueleto, Linha, Tela, Texto, Valor, Vazio } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { textoDoErro, useAtualizarAoFocar, useInicio, usePuxar } from '@/lib/consultas';
-import { dec, Decimal, ehZero, reaisCobrar } from '@/lib/dinheiro';
+import { dec, Decimal, ehZero, reaisCobrar, valorACobrar } from '@/lib/dinheiro';
 import { pegarCodigoPendente, useSessao } from '@/lib/sessao';
 import type { ResumoGrupo } from '@/lib/tipos';
 import { ultimoGrupo } from '@/lib/ultimo-grupo';
@@ -57,13 +57,14 @@ export default function Grupos() {
 
       {!carregando && grupos.length > 0 ? (
         <View style={estilos.totais}>
-          <Total rotulo="Você deve" valor={totalDevo} cor={tema.negativo} fundo={tema.fundoNegativo} />
-          <Total rotulo="Te devem" valor={totalMeDevem} cor={tema.positivo} fundo={tema.fundoPositivo} />
+          <Total rotulo="↓ Você paga" valor={totalDevo} cor={tema.negativo} fundo={tema.fundoNegativo} />
+          <Total rotulo="↑ Você recebe" valor={totalMeDevem} cor={tema.positivo} fundo={tema.fundoPositivo} />
         </View>
       ) : null}
 
       {!carregando && !erro && grupos.length === 0 ? (
         <Vazio
+          desenho="grupo"
           titulo="Nenhum grupo ainda"
           texto="Crie um grupo para a casa, uma viagem ou o mercado, ou entre num grupo com o código que te mandaram.">
           <View style={{ gap: espaco.m, alignSelf: 'stretch', marginTop: espaco.m }}>
@@ -116,9 +117,7 @@ function Total({ rotulo, valor, cor, fundo }: { rotulo: string; valor: Decimal; 
       <Texto variante="rotulo" cor={zerado ? tema.textoSuave : cor}>
         {rotulo}
       </Texto>
-      <Texto variante="grande" cor={zerado ? tema.textoSuave : cor} numberOfLines={1} style={{ fontSize: 26 }}>
-        {reaisCobrar(valor)}
-      </Texto>
+      <Valor valor={valorACobrar(valor)} cor={zerado ? tema.textoSuave : cor} tamanho={26} />
     </View>
   );
 }
@@ -130,9 +129,9 @@ function CartaoGrupo({ grupo }: { grupo: ResumoGrupo }) {
 
   let situacao = { texto: 'Tudo certo', cor: tema.textoSuave, fundo: tema.superficie2 };
   if (!ehZero(devo))
-    situacao = { texto: `Você deve ${reaisCobrar(devo)}`, cor: tema.negativo, fundo: tema.fundoNegativo };
+    situacao = { texto: `↓ Você paga ${reaisCobrar(devo)}`, cor: tema.negativo, fundo: tema.fundoNegativo };
   else if (!ehZero(meDevem))
-    situacao = { texto: `Te devem ${reaisCobrar(meDevem)}`, cor: tema.positivo, fundo: tema.fundoPositivo };
+    situacao = { texto: `↑ Você recebe ${reaisCobrar(meDevem)}`, cor: tema.positivo, fundo: tema.fundoPositivo };
 
   return (
     <Pressable
@@ -159,7 +158,7 @@ function CartaoGrupo({ grupo }: { grupo: ResumoGrupo }) {
           {!ehZero(devo) && !ehZero(meDevem) ? (
             <View style={[estilos.situacao, { backgroundColor: tema.fundoPositivo }]}>
               <Texto variante="suave" cor={tema.positivo} style={{ fontWeight: '700' }}>
-                Te devem {reaisCobrar(meDevem)}
+                ↑ Você recebe {reaisCobrar(meDevem)}
               </Texto>
             </View>
           ) : null}

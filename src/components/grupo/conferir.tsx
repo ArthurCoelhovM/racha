@@ -15,6 +15,7 @@ import {
   Vazio,
   type NomeIcone,
 } from '@/components/ui';
+import { SaldoNoTempo } from '@/components/graficos/dividas';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import type { LinhaExtrato, PontoParaOlhar } from '@/lib/api';
@@ -266,6 +267,8 @@ function Extrato({
           );
         })}
       </Cartao>
+
+      <SaldoNoTempo linhas={comSaldo} outro={nomeOutro} />
 
       <Cartao style={{ gap: 6 }}>
         <Texto variante="rotulo">A conta</Texto>

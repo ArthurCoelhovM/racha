@@ -14,3 +14,8 @@ verify_jwt = false
 # chamada pelo webhook do banco com a chave anon legada e o cabeçalho x-segredo
 [functions.enviar-push]
 verify_jwt = true
+
+# A conta é só e-mail, senha e nome: sem confirmação por e-mail no cadastro.
+# No projeto publicado, isso fica em Authentication > Sign In / Providers > Email > "Confirm email" desligado.
+[auth.email]
+enable_confirmations = false

@@ -7,7 +7,14 @@ import { descreverHistorico } from '@/lib/historico';
 import type { RegistroHistorico } from '@/lib/tipos';
 
 export function Historico({ registros, nome }: { registros: RegistroHistorico[]; nome: (u: string) => string }) {
-  if (registros.length === 0) return <Vazio titulo="Nada por aqui ainda" />;
+  if (registros.length === 0)
+    return (
+      <Vazio
+        desenho="sacola"
+        titulo="Nada por aqui ainda"
+        texto="Cada gasto, pagamento e mudança no grupo fica registrado aqui."
+      />
+    );
   return (
     <Cartao style={{ padding: 0, gap: 0 }}>
       {registros.map((r, i) => (

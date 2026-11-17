@@ -1,4 +1,14 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+
+import {
+  foiToqueLongo,
+  LinhaDeslizavel,
+  marcarToqueLongo,
+  MenuDeAcoes,
+  soltouToque,
+  type Acao,
+} from '@/components/acoes';
 
 import { Avatar, Cartao, Icone, Linha, Separador, Texto, Vazio } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
@@ -46,7 +56,13 @@ export function ListaDeDividas({
 }) {
   const tema = useTema();
   if (pendencias.length === 0) {
-    return <Vazio titulo="Ninguém deve nada" texto="Quando alguém registrar um gasto, as dívidas aparecem aqui." />;
+    return (
+      <Vazio
+        desenho="cofre"
+        titulo="Ninguém deve nada"
+        texto="Quando alguém registrar um gasto, as dívidas aparecem aqui."
+      />
+    );
   }
 
   // sem abatimento, cada gasto é uma dívida: quem tem várias com a mesma pessoa acerta tudo de uma vez
@@ -98,7 +114,7 @@ export function ListaDeDividas({
         {pendencias.map((p, i) => (
           <View key={p.chave}>
             {i > 0 ? <Separador /> : null}
-            <LinhaPendencia
+            <PendenciaComAcoes
               p={p}
               nome={nome}
               eu={eu}
@@ -115,6 +131,36 @@ export function ListaDeDividas({
   );
 }
 
+// deslizar para o lado ou segurar a linha: Paguei, Pix ou Cobrar, e o extrato
+function PendenciaComAcoes(props: Parameters<typeof LinhaPendencia>[0]) {
+  const tema = useTema();
+  const [menu, setMenu] = useState(false);
+  const { p, eu, nome } = props;
+  const devo = p.devedor === eu;
+  const recebo = p.credor === eu;
+  if (!devo && !recebo) return <LinhaPendencia {...props} />;
+  const outro = nome(devo ? p.credor : p.devedor);
+  const acoes: Acao[] = [
+    { titulo: devo ? 'Paguei' : 'Recebi', icone: 'checkmark', acao: props.aoPagar, cor: tema.positivo },
+    devo
+      ? { titulo: 'Pix', icone: 'qr-code-outline', acao: props.aoPix }
+      : { titulo: 'Cobrar', icone: 'megaphone-outline', acao: props.aoCobrar, cor: tema.aviso },
+    { titulo: 'Extrato', icone: 'list-outline', acao: props.aoVerExtrato, cor: tema.textoSuave },
+  ];
+  return (
+    <>
+      <LinhaDeslizavel acoes={acoes}>
+        <LinhaPendencia {...props} aoSegurar={() => setMenu(true)} />
+      </LinhaDeslizavel>
+      <MenuDeAcoes
+        titulo={menu ? `${devo ? 'Você deve a' : 'Te deve:'} ${outro}` : null}
+        acoes={acoes}
+        aoFechar={() => setMenu(false)}
+      />
+    </>
+  );
+}
+
 function LinhaPendencia({
   p,
   nome,
@@ -124,7 +170,9 @@ function LinhaPendencia({
   aoCobrar,
   aoPix,
   aoVerExtrato,
+  aoSegurar,
 }: {
+  aoSegurar?: () => void;
   p: Pendencia;
   nome: (u: string) => string;
   eu: string;
@@ -140,7 +188,23 @@ function LinhaPendencia({
   // tocar na linha abre o extrato com a outra pessoa
   return (
     <Pressable
-      onPress={devo || recebo ? aoVerExtrato : undefined}
+      onPress={
+        devo || recebo
+          ? () => {
+              if (!foiToqueLongo()) aoVerExtrato();
+            }
+          : undefined
+      }
+      onPressOut={soltouToque}
+      onLongPress={
+        aoSegurar
+          ? () => {
+              marcarToqueLongo();
+              aoSegurar();
+            }
+          : undefined
+      }
+      delayLongPress={350}
       disabled={!devo && !recebo}
       accessibilityLabel={
         devo || recebo
@@ -159,6 +223,7 @@ function LinhaPendencia({
           {nome(p.devedor)} deve a {nome(p.credor) === 'Você' ? 'você' : nome(p.credor)}
         </Texto>
         <Texto variante="subtitulo" cor={devo ? tema.negativo : recebo ? tema.positivo : tema.texto}>
+          {devo ? '↓ ' : recebo ? '↑ ' : ''}
           {reais(p.cobrar)}
         </Texto>
         {p.descricao ? (

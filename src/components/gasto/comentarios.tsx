@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { useDesfazer } from '@/components/desfazer';
 import { Aviso, Avatar, Botao, Campo, Cartao, Linha, Separador, Texto } from '@/components/ui';
 import { espaco } from '@/constants/tema';
 import { apagarComentario, comentar, listarComentarios, mensagemDeErro } from '@/lib/api';
@@ -10,8 +11,19 @@ import { momento } from '@/lib/formatos';
 import { Secao } from './partes';
 
 // conversa sobre um gasto, para tirar dúvida sem sair do app
-export function Comentarios({ gastoId, eu, nome }: { gastoId: string; eu: string; nome: (u: string) => string }) {
+export function Comentarios({
+  gastoId,
+  eu,
+  nome,
+  focar = false,
+}: {
+  gastoId: string;
+  eu: string;
+  nome: (u: string) => string;
+  focar?: boolean;
+}) {
   const cliente = useQueryClient();
+  const desfazer = useDesfazer();
   const chave = ['gasto', gastoId, 'comentarios'];
   const consulta = useQuery({ queryKey: chave, queryFn: () => listarComentarios(gastoId) });
   const [texto, setTexto] = useState('');
@@ -33,10 +45,17 @@ export function Comentarios({ gastoId, eu, nome }: { gastoId: string; eu: string
     }
   }
 
-  async function apagar(id: number) {
+  async function apagar(id: number, textoApagado: string) {
     try {
       await apagarComentario(id);
       await cliente.invalidateQueries({ queryKey: chave });
+      desfazer({
+        texto: 'Comentário apagado.',
+        desfazer: async () => {
+          await comentar(gastoId, textoApagado);
+          await cliente.invalidateQueries({ queryKey: chave });
+        },
+      });
     } catch (e) {
       setErro(mensagemDeErro(e));
     }
@@ -58,13 +77,7 @@ export function Comentarios({ gastoId, eu, nome }: { gastoId: string; eu: string
                   <Texto variante="suave">{momento(c.criado_em)}</Texto>
                 </View>
                 {c.usuario_id === eu ? (
-                  <Botao
-                    pequeno
-                    variante="texto"
-                    titulo="Apagar"
-                    confirmar="Apagar?"
-                    aoPressionar={() => apagar(c.id)}
-                  />
+                  <Botao pequeno variante="texto" titulo="Apagar" aoPressionar={() => apagar(c.id, c.texto)} />
                 ) : null}
               </Linha>
             </View>
@@ -73,6 +86,7 @@ export function Comentarios({ gastoId, eu, nome }: { gastoId: string; eu: string
       ) : null}
       {erro ? <Aviso texto={erro} /> : null}
       <Campo
+        autoFocus={focar}
         value={texto}
         onChangeText={setTexto}
         placeholder="Escreva uma dúvida ou observação"

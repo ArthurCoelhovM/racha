@@ -32,15 +32,15 @@ test('grupo, gastos, pagamento, histórico e saída de um membro', async ({ page
   await campo(page, 'Valor (R$)').fill('10000');
   await expect(campo(page, 'Valor (R$)')).toHaveValue('100,00');
   await botao(page, 'Registrar gasto').click();
-  await expect(texto(page, 'Te devem')).toBeVisible();
+  await expect(texto(page, 'Você recebe R$ 50,00 de Bia')).toBeVisible();
   await expect(texto(page, 'R$ 50,00')).toBeVisible();
 
   // marcar pago e desfazer
   await botao(page, 'Marcar que recebi').click();
   await expect(texto(page, 'Pagamento de R$ 50,00 marcado.')).toBeVisible();
   await expect(texto(page, 'Ninguém deve nada')).toBeVisible();
-  await texto(page, 'Desfazer').click();
-  await expect(texto(page, 'Pagamento desfeito.')).toBeVisible();
+  await botao(page, 'Desfazer').click();
+  await expect(texto(page, 'Desfeito.', true)).toBeVisible();
   await expect(texto(page, 'Bia deve a você')).toBeVisible();
 
   await aba(page, 'Histórico').click();

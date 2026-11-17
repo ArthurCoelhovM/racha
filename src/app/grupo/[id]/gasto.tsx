@@ -19,7 +19,15 @@ import { Dica } from '@/components/tutorial/dica';
 import { Aviso, Botao, Campo, CoresDoGrupo, Esqueleto, Ficha, Fichas, Icone, Tela, Texto } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
-import { criarRecorrente, excluirGasto, mensagemDeErro, preencherLancamento, salvarGasto } from '@/lib/api';
+import { useDesfazer } from '@/components/desfazer';
+import {
+  criarRecorrente,
+  excluirGasto,
+  gastoParaSalvar,
+  mensagemDeErro,
+  preencherLancamento,
+  salvarGasto,
+} from '@/lib/api';
 import {
   textoDoErro,
   useGasto,
@@ -52,13 +60,17 @@ import {
 import { lembrarGrupo } from '@/lib/ultimo-grupo';
 
 export default function TelaGasto() {
-  const { id, gastoId, escolher, pendente, cupom } = useLocalSearchParams<{
+  const { id, gastoId, escolher, pendente, cupom, copiar, comentar } = useLocalSearchParams<{
     id: string;
     gastoId?: string;
     escolher?: string;
     pendente?: string;
     cupom?: string;
+    copiar?: string;
+    comentar?: string;
   }>();
+  // "Duplicar": o formulário vem com tudo do gasto escolhido, como gasto novo e com a data de hoje
+  const original = useGasto(gastoId ? undefined : copiar);
   const pendentes = usePendentes(id);
   const escolherGrupo = !gastoId && escolher === '1';
   const { usuarioId } = useSessao();
@@ -67,7 +79,7 @@ export default function TelaGasto() {
   const gasto = useGasto(gastoId);
   const historico = useHistoricoDoGasto(id, gastoId);
 
-  const erro = textoDoErro(grupo.error ?? membros.error ?? gasto.error);
+  const erro = textoDoErro(grupo.error ?? membros.error ?? gasto.error ?? original.error);
   const topo = escolherGrupo ? <EscolherGrupo atual={id} /> : null;
   if (erro) {
     return (
@@ -77,7 +89,13 @@ export default function TelaGasto() {
       </Tela>
     );
   }
-  if (!grupo.data || !membros.data || (gastoId && !gasto.data) || (pendente && !pendentes.data)) {
+  if (
+    !grupo.data ||
+    !membros.data ||
+    (gastoId && !gasto.data) ||
+    (pendente && !pendentes.data) ||
+    (copiar && !gastoId && !original.data)
+  ) {
     return (
       <Tela>
         {topo}
@@ -90,7 +108,8 @@ export default function TelaGasto() {
   const doGasto = gastoId ? gasto.data! : null;
   // conta de valor variável: o formulário já vem com o que foi usado da última vez, menos o valor
   const doPendente = pendente ? (pendentes.data ?? []).find((p) => p.id === pendente) : undefined;
-  const inicial = doGasto ?? (doPendente ? gastoDoModelo(doPendente) : null);
+  const copia = !gastoId && original.data ? { ...original.data, data: hojeIso(), comprovante: null } : null;
+  const inicial = doGasto ?? (doPendente ? gastoDoModelo(doPendente) : copia);
   const noGasto = new Set<string>([
     ...(inicial?.pagadores ?? []).map((p) => p.usuario_id),
     ...(inicial?.divisoes ?? []).map((d) => d.usuario_id),
@@ -134,7 +153,7 @@ export default function TelaGasto() {
             />
           ) : null}
           <Alteracoes registros={registros} nome={nome} />
-          {doGasto ? <Comentarios gastoId={doGasto.id} eu={eu} nome={nome} /> : null}
+          {doGasto ? <Comentarios gastoId={doGasto.id} eu={eu} nome={nome} focar={comentar === '1'} /> : null}
         </Tela>
       </CoresDoGrupo>
     );
@@ -143,7 +162,7 @@ export default function TelaGasto() {
   return (
     <CoresDoGrupo membros={membros.data}>
       <Formulario
-        key={doGasto?.id ?? pendente ?? 'novo'}
+        key={doGasto?.id ?? pendente ?? (copia ? `copia-${copia.id}` : 'novo')}
         grupo={grupo.data}
         membros={membros.data.filter((m) => m.ativo || noGasto.has(m.usuario_id))}
         gasto={doGasto}
@@ -155,6 +174,8 @@ export default function TelaGasto() {
         topo={topo}
         escolherGrupo={escolherGrupo}
         abrirCupom={cupom === '1'}
+        valorInicial={copia ? paraCampo(copia.valor_total) : ''}
+        focarComentario={comentar === '1'}
       />
     </CoresDoGrupo>
   );
@@ -181,7 +202,11 @@ function Formulario({
   topo,
   escolherGrupo,
   abrirCupom,
+  valorInicial,
+  focarComentario,
 }: {
+  valorInicial: string;
+  focarComentario: boolean;
   grupo: Grupo;
   membros: Membro[];
   gasto: Gasto | null;
@@ -204,7 +229,7 @@ function Formulario({
   const tipoDoGasto = inicial?.tipo_divisao;
 
   const [descricao, setDescricao] = useState(inicial?.descricao ?? '');
-  const [valorTexto, setValorTexto] = useState(gasto ? paraCampo(gasto.valor_total) : '');
+  const [valorTexto, setValorTexto] = useState(gasto ? paraCampo(gasto.valor_total) : valorInicial);
   const [data, setData] = useState(inicial?.data ?? hojeIso());
 
   const variosNoInicio = (inicial?.pagadores.length ?? 0) > 1;
@@ -233,6 +258,7 @@ function Formulario({
   const { tipo, itens } = divisaoEstado;
   const mudarDivisao = (mudanca: Partial<EstadoDivisao>) => setDivisaoEstado((atual) => ({ ...atual, ...mudanca }));
   const invalidar = useInvalidarGrupo();
+  const desfazer = useDesfazer();
 
   // detalhes (quem pagou e como dividir) começam fechados no caso comum: você pagou, igual entre todos
   const [detalhes, setDetalhes] = useState(
@@ -364,6 +390,7 @@ function Formulario({
     }
   }
 
+  // sem "toque de novo": a exclusão pode ser desfeita pela barra de baixo
   async function excluir() {
     if (!gasto) return;
     setSalvando(true);
@@ -371,6 +398,14 @@ function Formulario({
       await excluirGasto(gasto.id);
       await invalidar(grupo.id);
       router.back();
+      const copia = gastoParaSalvar(gasto);
+      desfazer({
+        texto: `"${gasto.descricao}" foi excluído.`,
+        desfazer: async () => {
+          await salvarGasto(copia);
+          await invalidar(copia.grupoId);
+        },
+      });
     } catch (e) {
       setErro(mensagemDeErro(e));
       setSalvando(false);
@@ -490,16 +525,10 @@ function Formulario({
       {erro ? <Aviso texto={erro} /> : null}
       <Botao titulo={gasto ? 'Salvar alterações' : 'Registrar gasto'} aoPressionar={salvar} carregando={salvando} />
       {podeExcluir ? (
-        <Botao
-          titulo="Excluir gasto"
-          variante="perigo"
-          confirmar="Toque de novo para excluir"
-          aoPressionar={excluir}
-          desabilitado={salvando}
-        />
+        <Botao titulo="Excluir gasto" variante="perigo" aoPressionar={excluir} desabilitado={salvando} />
       ) : null}
       <Alteracoes registros={historico} nome={nome} />
-      {gasto ? <Comentarios gastoId={gasto.id} eu={eu} nome={nome} /> : null}
+      {gasto ? <Comentarios gastoId={gasto.id} eu={eu} nome={nome} focar={focarComentario} /> : null}
     </Tela>
   );
 }

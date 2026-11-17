@@ -63,7 +63,11 @@ export default function Avisos() {
     <Tela aoAtualizar={puxar} atualizando={atualizando}>
       {erro ? <Faixa texto={erro} acao="Tentar de novo" aoAcionar={() => recarregar()} /> : null}
       {dados && dados.length === 0 ? (
-        <Vazio titulo="Nenhum aviso" texto="Gastos novos, pagamentos e lembretes de dívida aparecem aqui." />
+        <Vazio
+          desenho="sino"
+          titulo="Nenhum aviso"
+          texto="Gastos novos, pagamentos e lembretes de dívida aparecem aqui."
+        />
       ) : null}
       {dados && dados.length > 0 ? (
         <Cartao style={{ padding: 0, gap: 0 }}>

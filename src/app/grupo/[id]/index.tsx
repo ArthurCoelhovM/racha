@@ -5,12 +5,16 @@ import { Abas } from '@/components/grupo/abas';
 import { Historico } from '@/components/grupo/historico';
 import { ListaDeDividas } from '@/components/grupo/lista-de-dividas';
 import { AbaResumo } from '@/components/grupo/aba-resumo';
+import { useDesfazer } from '@/components/desfazer';
+import { tomClaro } from '@/constants/tema';
+import { useEscuro } from '@/hooks/use-tema';
 import { Conferir } from '@/components/grupo/conferir';
+import { MapaDeDividas } from '@/components/graficos/dividas';
 import { PagarComPix } from '@/components/pix/pagar-com-pix';
 import { Dica } from '@/components/tutorial/dica';
 import { FiltrosDeGastos, SEM_FILTRO } from '@/components/grupo/filtros-de-gastos';
 import { ContasSemValor, ListaDeGastos, ListaDeRecorrentes } from '@/components/grupo/lista-de-gastos';
-import { ResumoDoGrupo } from '@/components/grupo/resumo-do-grupo';
+import { fraseDoGrupo, ResumoDoGrupo } from '@/components/grupo/resumo-do-grupo';
 import { SaldosPorPessoa } from '@/components/grupo/saldos-por-pessoa';
 import { Aviso, Botao, BotaoFlutuante, BotaoIcone, CoresDoGrupo, Esqueleto, Linha, Tela, Vazio } from '@/components/ui';
 import {
@@ -19,6 +23,7 @@ import {
   listarGastos,
   mensagemDeErro,
   pararRecorrente,
+  retomarRecorrente,
   temFiltro,
   type Filtros,
 } from '@/lib/api';
@@ -50,7 +55,7 @@ import type { Recorrente } from '@/lib/tipos';
 
 type Aba = 'dividas' | 'gastos' | 'resumo' | 'historico';
 type Visao = 'lista' | 'pessoas' | 'grafico' | 'conferir';
-type Mensagem = { texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string };
+type Mensagem = { texto: string; tipo: 'ok' | 'erro' };
 
 export default function TelaGrupo() {
   const { id, ver } = useLocalSearchParams<{ id: string; ver?: string }>();
@@ -67,6 +72,8 @@ export default function TelaGrupo() {
   const invalidar = useInvalidarGrupo();
   const marcarPago = useMarcarPago(id);
   const desfazerPagamento = useDesfazerPagamento(id);
+  const desfazer = useDesfazer();
+  const escuro = useEscuro();
 
   const [aba, setAba] = useState<Aba>('dividas');
   const [visao, setVisao] = useState<Visao>(ver === 'conferir' ? 'conferir' : 'lista');
@@ -108,6 +115,7 @@ export default function TelaGrupo() {
         {ehForaDoGrupo(erroDoGrupo) ? (
           <>
             <Vazio
+              desenho="grupo"
               titulo="Você não está mais neste grupo"
               texto="Ele saiu da sua lista. Peça um convite novo para voltar."
             />
@@ -136,14 +144,10 @@ export default function TelaGrupo() {
     vibrarSucesso();
     marcarPago.mutate(p, {
       onSuccess: (pagamentoId) =>
-        setMensagem({ texto: `Pagamento de ${reais(p.cobrar)} marcado.`, tipo: 'ok', pagamentoId }),
-      onError: (e) => setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' }),
-    });
-  }
-
-  function desfazer(pagamentoId: string) {
-    desfazerPagamento.mutate(pagamentoId, {
-      onSuccess: () => setMensagem({ texto: 'Pagamento desfeito.', tipo: 'ok' }),
+        desfazer({
+          texto: `Pagamento de ${reais(p.cobrar)} marcado.`,
+          desfazer: () => desfazerPagamento.mutateAsync(pagamentoId),
+        }),
       onError: (e) => setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' }),
     });
   }
@@ -173,8 +177,14 @@ export default function TelaGrupo() {
   async function parar(r: Recorrente) {
     try {
       await pararRecorrente(r.id);
-      setMensagem({ texto: `"${r.descricao}" não vai mais se repetir.`, tipo: 'ok' });
       atualizar();
+      desfazer({
+        texto: `"${r.descricao}" não vai mais se repetir.`,
+        desfazer: async () => {
+          await retomarRecorrente(r.id);
+          await atualizar();
+        },
+      });
     } catch (e) {
       setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' });
     }
@@ -185,6 +195,39 @@ export default function TelaGrupo() {
       <Tela
         aoAtualizar={puxar}
         atualizando={puxando}
+        topo={
+          <>
+            <ResumoDoGrupo
+              grupo={g}
+              membros={membros.data}
+              voceDeve={voceDeve}
+              teDevem={teDevem}
+              frase={fraseDoGrupo(listaPendencias, eu, (u) => nome(u).replace(/ \(saiu\)$/, ''))}
+            />
+
+            <Dica
+              id="grupo-abatimento"
+              titulo={g.abatimento ? 'Abatimento direto' : 'Cada gasto, uma dívida'}
+              texto={
+                g.abatimento
+                  ? 'Se você deve R$ 30 à Bia e ela te deve R$ 10, você só paga R$ 20. O abatimento é sempre entre duas pessoas: ninguém paga a dívida de outro.'
+                  : 'Neste grupo as dívidas não se compensam: cada gasto é pago separado. Dá para ligar o abatimento nos ajustes do grupo.'
+              }
+            />
+          </>
+        }
+        fixo={
+          <Abas
+            opcoes={[
+              ['dividas', 'Dívidas'],
+              ['gastos', `Gastos (${totalGastos.data ?? listaGastos.length})`],
+              ['resumo', 'Resumo'],
+              ['historico', 'Histórico'],
+            ]}
+            valor={aba}
+            aoMudar={setAba}
+          />
+        }
         sobreposto={
           podeRegistrar ? (
             <BotaoFlutuante
@@ -196,6 +239,8 @@ export default function TelaGrupo() {
         <Stack.Screen
           options={{
             title: g.nome,
+            // a cor do grupo no cabeçalho: dois grupos abertos em seguida já ficam diferentes
+            headerStyle: { backgroundColor: tomClaro(g.cor, escuro) },
             headerRight: () => (
               <Linha style={{ gap: 6, paddingHorizontal: 4 }}>
                 {podeConvidar ? (
@@ -215,37 +260,7 @@ export default function TelaGrupo() {
           }}
         />
 
-        <ResumoDoGrupo grupo={g} membros={membros.data} voceDeve={voceDeve} teDevem={teDevem} />
-
-        <Dica
-          id="grupo-abatimento"
-          titulo={g.abatimento ? 'Abatimento direto' : 'Cada gasto, uma dívida'}
-          texto={
-            g.abatimento
-              ? 'Se você deve R$ 30 à Bia e ela te deve R$ 10, você só paga R$ 20. O abatimento é sempre entre duas pessoas: ninguém paga a dívida de outro.'
-              : 'Neste grupo as dívidas não se compensam: cada gasto é pago separado. Dá para ligar o abatimento nos ajustes do grupo.'
-          }
-        />
-
-        <Abas
-          opcoes={[
-            ['dividas', 'Dívidas'],
-            ['gastos', `Gastos (${totalGastos.data ?? listaGastos.length})`],
-            ['resumo', 'Resumo'],
-            ['historico', 'Histórico'],
-          ]}
-          valor={aba}
-          aoMudar={setAba}
-        />
-
-        {mensagem ? (
-          <Aviso
-            texto={mensagem.texto}
-            tipo={mensagem.tipo}
-            acao={mensagem.pagamentoId ? 'Desfazer' : undefined}
-            aoAcionar={mensagem.pagamentoId ? () => desfazer(mensagem.pagamentoId!) : undefined}
-          />
-        ) : null}
+        {mensagem ? <Aviso texto={mensagem.texto} tipo={mensagem.tipo} /> : null}
         {erroDasListas ? <Aviso texto={erroDasListas} acao="Tentar de novo" aoAcionar={atualizar} /> : null}
 
         {aba === 'dividas' ? (
@@ -307,14 +322,28 @@ export default function TelaGrupo() {
                 aoPagar={pagar}
               />
             ) : listaPendencias.length === 0 ? (
-              <Vazio titulo="Ninguém deve nada" texto="Quando alguém registrar um gasto, as dívidas aparecem aqui." />
-            ) : (
-              <SaldosPorPessoa
-                membros={membros.data}
-                pendencias={listaPendencias}
-                nome={nome}
-                grafico={visao === 'grafico'}
+              <Vazio
+                desenho="cofre"
+                titulo="Ninguém deve nada"
+                texto="Quando alguém registrar um gasto, as dívidas aparecem aqui."
               />
+            ) : (
+              <>
+                {visao === 'grafico' ? (
+                  <MapaDeDividas
+                    pendencias={listaPendencias}
+                    pessoas={membros.data.map((m) => m.usuario_id)}
+                    eu={eu}
+                    nome={nome}
+                  />
+                ) : null}
+                <SaldosPorPessoa
+                  membros={membros.data}
+                  pendencias={listaPendencias}
+                  nome={nome}
+                  grafico={visao === 'grafico'}
+                />
+              </>
             )}
           </>
         ) : null}
@@ -332,7 +361,11 @@ export default function TelaGrupo() {
             {(filtrando ? busca.isPending : gastos.isPending) ? (
               <Esqueleto comResumo={false} />
             ) : filtrando && (busca.data ?? []).length === 0 ? (
-              <Vazio titulo="Nenhum gasto encontrado" texto="Tente outra palavra ou tire algum filtro." />
+              <Vazio
+                desenho="busca"
+                titulo="Nenhum gasto encontrado"
+                texto="Tente outra palavra ou tire algum filtro."
+              />
             ) : (
               <ListaDeGastos
                 gastos={filtrando ? (busca.data ?? []) : listaGastos}
@@ -345,6 +378,9 @@ export default function TelaGrupo() {
                   router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id, gastoId: gasto.id } })
                 }
                 aoCarregarMais={() => gastos.fetchNextPage()}
+                aoRegistrar={
+                  podeRegistrar ? () => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id } }) : undefined
+                }
               />
             )}
             {listaGastos.length > 0 ? (
@@ -360,7 +396,16 @@ export default function TelaGrupo() {
 
         {aba === 'resumo' ? (
           todosGastos.data ? (
-            <AbaResumo gastos={todosGastos.data} eu={eu} nome={nome} />
+            <AbaResumo
+              gastos={todosGastos.data}
+              eu={eu}
+              nome={nome}
+              grupo={g}
+              podeMudarMetas={pode(g, papel, 'mudar_configuracoes')}
+              recorrentes={recorrentes.data ?? []}
+              pendentes={pendentes.data ?? []}
+              aoMudar={atualizar}
+            />
           ) : (
             <Esqueleto comResumo={false} />
           )

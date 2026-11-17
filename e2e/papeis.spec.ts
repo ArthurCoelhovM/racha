@@ -51,7 +51,6 @@ test('papéis, permissões e o que fica para quem foi removido', async ({ browse
 
   // Ana remove a Bia
   await botao(paginaAna, 'Remover').click();
-  await botao(paginaAna, 'Toque de novo para remover Bia').click();
   await expect(texto(paginaAna, 'Bia saiu do grupo.')).toBeVisible();
 
   // a Bia continua vendo e paga o que deve

@@ -93,7 +93,8 @@ declare
   juca uuid := '00000000-0000-0000-0000-0000000000d9';
 begin
   assert (select nome from public.perfis where id = juca) = 'Conta excluída', 'nome apagado';
-  assert (select email from public.perfis where id = juca) is null, 'e-mail apagado';
+  assert not exists (select 1 from information_schema.columns where table_name = 'perfis' and column_name = 'email'),
+    'o perfil não guarda e-mail';
   assert not (select ativo from public.membros where usuario_id = juca), 'saiu dos grupos';
   assert (select count(*) from public.avisos where usuario_id = juca) = 0, 'avisos apagados';
   assert (select count(*) from public.dividas where devedor = juca) = 1, 'a dívida continua no histórico do grupo';

@@ -1,10 +1,20 @@
-import type { ReactNode } from 'react';
+import { router } from 'expo-router';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Botao, Cartao, Icone, Linha, Separador, Texto, Vazio, type NomeIcone } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
+import {
+  foiToqueLongo,
+  LinhaDeslizavel,
+  marcarToqueLongo,
+  MenuDeAcoes,
+  soltouToque,
+  type Acao,
+} from '@/components/acoes';
 import { agruparPorData } from '@/lib/agrupar';
+import { useCompacto } from '@/lib/preferencias';
 import { dec, reais, reaisCobrar } from '@/lib/dinheiro';
 import { diaCurto, hojeIso, isoParaBr } from '@/lib/formatos';
 import type { Pendencia } from '@/lib/saldos';
@@ -79,7 +89,7 @@ export function ListaDeRecorrentes({
               {r.valor_variavel ? ', valor muda' : ''}, próximo em {isoParaBr(r.proxima_data)}
             </Texto>
           </View>
-          <Botao pequeno variante="perigo" titulo="Parar" confirmar="Parar?" aoPressionar={() => aoParar(r)} />
+          <Botao pequeno variante="perigo" titulo="Parar" aoPressionar={() => aoParar(r)} />
         </Linha>
       ))}
     </Cartao>
@@ -95,7 +105,9 @@ export function ListaDeGastos({
   carregandoMais,
   aoAbrir,
   aoCarregarMais,
+  aoRegistrar,
 }: {
+  aoRegistrar?: () => void;
   gastos: Gasto[];
   pendencias: Pendencia[];
   total: number;
@@ -106,14 +118,22 @@ export function ListaDeGastos({
   aoCarregarMais: () => void;
 }) {
   if (gastos.length === 0) {
-    return <Vazio titulo="Nenhum gasto ainda" texto="Toque em + Gasto para registrar o primeiro." />;
+    return (
+      <Vazio
+        desenho="sacola"
+        titulo="Nenhum gasto ainda"
+        texto="Mercado, luz, pizza: tudo o que o grupo dividir aparece aqui."
+        acao={aoRegistrar ? 'Registrar o primeiro gasto' : undefined}
+        aoAcionar={aoRegistrar}
+      />
+    );
   }
   return (
     <>
       <GastosPorData
         gastos={gastos}
         linha={(g) => (
-          <LinhaGasto g={g} eu={eu} nome={nome} pago={gastoPago(g, pendencias)} aoAbrir={() => aoAbrir(g)} />
+          <LinhaGastoComAcoes g={g} eu={eu} nome={nome} pago={gastoPago(g, pendencias)} aoAbrir={() => aoAbrir(g)} />
         )}
       />
       {gastos.length < total ? (
@@ -157,14 +177,48 @@ export function GastosPorData<T extends Gasto>({ gastos, linha }: { gastos: T[];
   );
 }
 
+// a linha do gasto com deslizar para o lado e toque longo: editar, duplicar ou comentar
+export function LinhaGastoComAcoes(props: Parameters<typeof LinhaGasto>[0]) {
+  const [menu, setMenu] = useState(false);
+  const g = props.g;
+  const acoes: Acao[] = [
+    {
+      titulo: 'Editar',
+      icone: 'create-outline',
+      acao: () => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.grupo_id, gastoId: g.id } }),
+    },
+    {
+      titulo: 'Duplicar',
+      icone: 'copy-outline',
+      acao: () => router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.grupo_id, copiar: g.id } }),
+    },
+    {
+      titulo: 'Comentar',
+      icone: 'chatbubble-outline',
+      acao: () =>
+        router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.grupo_id, gastoId: g.id, comentar: '1' } }),
+    },
+  ];
+  return (
+    <>
+      <LinhaDeslizavel acoes={acoes}>
+        <LinhaGasto {...props} aoSegurar={() => setMenu(true)} />
+      </LinhaDeslizavel>
+      <MenuDeAcoes titulo={menu ? g.descricao : null} acoes={acoes} aoFechar={() => setMenu(false)} />
+    </>
+  );
+}
+
 export function LinhaGasto({
   g,
   eu,
   nome,
   pago,
   aoAbrir,
+  aoSegurar,
   grupo,
 }: {
+  aoSegurar?: () => void;
   g: Gasto;
   eu: string;
   nome: (u: string) => string;
@@ -176,11 +230,27 @@ export function LinhaGasto({
   const minhaParte = g.divisoes.find((d) => d.usuario_id === eu);
   const pagou = g.pagadores.map((p) => nome(p.usuario_id).replace(/^Você$/, 'você')).join(' e ');
   const categoria = infoCategoria(g.categoria);
+  const compacto = useCompacto();
   return (
-    <Pressable onPress={aoAbrir} style={({ pressed }) => [estilos.linha, { opacity: pressed ? 0.7 : 1 }]}>
+    <Pressable
+      onPress={() => {
+        if (!foiToqueLongo()) aoAbrir();
+      }}
+      onPressOut={soltouToque}
+      onLongPress={
+        aoSegurar
+          ? () => {
+              marcarToqueLongo();
+              aoSegurar();
+            }
+          : undefined
+      }
+      delayLongPress={350}
+      accessibilityHint={aoSegurar ? 'Segure para editar, duplicar ou comentar' : undefined}
+      style={({ pressed }) => [estilos.linha, compacto && estilos.linhaCompacta, { opacity: pressed ? 0.7 : 1 }]}>
       <Linha>
-        <View style={[estilos.icone, { backgroundColor: `${categoria.cor}1F` }]}>
-          <Icone nome={categoria.icone as NomeIcone} tamanho={20} cor={categoria.cor} />
+        <View style={[estilos.icone, compacto && estilos.iconeCompacto, { backgroundColor: `${categoria.cor}1F` }]}>
+          <Icone nome={categoria.icone as NomeIcone} tamanho={compacto ? 16 : 20} cor={categoria.cor} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Texto variante="forte" numberOfLines={1}>
@@ -195,7 +265,7 @@ export function LinhaGasto({
             </Linha>
           ) : null}
           <Texto variante="suave" numberOfLines={1}>
-            {diaCurto(g.data)} · pago por {pagou}
+            {compacto ? '' : `${diaCurto(g.data)} · `}pago por {pagou}
             {g.recorrente_id ? ' ↻' : ''}
             {g.comprovante ? ' 📎' : ''}
           </Texto>
@@ -211,7 +281,7 @@ export function LinhaGasto({
             ) : null}
             <Texto variante="forte">{reais(dec(g.valor_total))}</Texto>
           </Linha>
-          {minhaParte ? <Texto variante="suave">sua parte {reaisCobrar(minhaParte.valor)}</Texto> : null}
+          {minhaParte && !compacto ? <Texto variante="suave">sua parte {reaisCobrar(minhaParte.valor)}</Texto> : null}
         </View>
       </Linha>
     </Pressable>
@@ -220,6 +290,8 @@ export function LinhaGasto({
 
 const estilos = StyleSheet.create({
   linha: { padding: espaco.g, gap: espaco.m },
+  linhaCompacta: { paddingVertical: 9 },
+  iconeCompacto: { width: 30, height: 30 },
   icone: { width: 40, height: 40, borderRadius: raio.m, alignItems: 'center', justifyContent: 'center' },
   titulo: { paddingHorizontal: 4, paddingTop: espaco.m },
   bolinha: { width: 8, height: 8, borderRadius: 4 },

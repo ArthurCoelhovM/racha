@@ -1,5 +1,5 @@
 import type { Nota } from './cupom';
-import type { Decimal } from './dinheiro';
+import { dec, type Decimal } from './dinheiro';
 import type { Parte, Pagador } from './divisao';
 import { lerPendencias, type Pendencia, type PendenciaBanco } from './saldos';
 import type { Json } from './banco';
@@ -55,15 +55,17 @@ function numerico(valor: Decimal): number {
 }
 
 // o banco guarda tipo, papel e frequência como texto com check; aqui eles voltam a ser os tipos do app
-type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas' | 'permissoes'> & {
+type LinhaGrupo = Omit<Grupo, 'divisoes_permitidas' | 'permissoes' | 'metas'> & {
   divisoes_permitidas: string[];
   permissoes: Json;
+  metas: Json;
 };
 function paraGrupo(g: LinhaGrupo): Grupo {
   return {
     ...g,
     divisoes_permitidas: g.divisoes_permitidas as TipoDivisao[],
     permissoes: g.permissoes as Permissoes,
+    metas: (g.metas ?? {}) as Partial<Record<Categoria, number>>,
   };
 }
 
@@ -99,7 +101,7 @@ export async function buscarGrupo(id: string): Promise<Grupo> {
   const grupo = semErro(
     await supabase
       .from('grupos')
-      .select('id, nome, cor, abatimento, divisoes_permitidas, lembrete_dias, criado_por, permissoes')
+      .select('id, nome, cor, abatimento, divisoes_permitidas, lembrete_dias, criado_por, permissoes, metas')
       .eq('id', id)
       .maybeSingle(),
   );
@@ -327,6 +329,22 @@ function montarPayload(g: GastoParaSalvar): Json {
     itens: g.itens as Json,
     pagadores: g.pagadores.map((p) => ({ usuario_id: p.usuario_id, valor: p.valor.toFixed(2) })),
     divisoes: g.partes.map((p) => ({ usuario_id: p.usuario_id, parametro: p.parametro, valor: p.valor.toString() })),
+  };
+}
+
+// um gasto já salvo, no formato de salvar: serve para desfazer a exclusão
+export function gastoParaSalvar(g: Gasto): GastoParaSalvar {
+  return {
+    grupoId: g.grupo_id,
+    descricao: g.descricao,
+    categoria: g.categoria,
+    comprovante: g.comprovante,
+    total: dec(g.valor_total),
+    data: g.data,
+    tipo: g.tipo_divisao,
+    itens: g.itens,
+    pagadores: g.pagadores.map((p) => ({ usuario_id: p.usuario_id, valor: dec(p.valor) })),
+    partes: g.divisoes.map((d) => ({ usuario_id: d.usuario_id, parametro: d.parametro, valor: dec(d.valor) })),
   };
 }
 
@@ -630,4 +648,39 @@ export async function paginaDeMeusGastos(inicio: number, quantos: number): Promi
 export async function nomesConhecidos(): Promise<Map<string, string>> {
   const linhas = checar(await supabase.from('perfis').select('id, nome'));
   return new Map(linhas.map((p) => [p.id, p.nome || 'Alguém']));
+}
+
+// ---------------------------------------------------------------
+// Desfazer, metas e busca geral
+// ---------------------------------------------------------------
+
+export async function readmitirMembro(grupoId: string, usuarioId: string): Promise<void> {
+  semErro(await supabase.rpc('readmitir_membro', { p_grupo: grupoId, p_usuario: usuarioId }));
+}
+
+export async function retomarRecorrente(id: string): Promise<void> {
+  semErro(await supabase.rpc('retomar_recorrente', { p_id: id }));
+}
+
+export type Metas = Partial<Record<Categoria, number>>;
+
+export async function definirMetas(grupoId: string, metas: Metas): Promise<void> {
+  semErro(await supabase.rpc('definir_metas', { p_grupo: grupoId, p_metas: metas as Json }));
+}
+
+export async function buscarEmTodos(texto: string): Promise<GastoComGrupo[]> {
+  const ids = checar(await supabase.rpc('buscar_em_todos', { p_texto: texto.trim() }));
+  if (ids.length === 0) return [];
+  const linhas = checar(
+    await supabase
+      .from('gastos')
+      .select(`${CAMPOS_GASTO}, grupo:grupos(nome, cor)`)
+      .in('id', ids)
+      .order('data', { ascending: false })
+      .order('criado_em', { ascending: false }),
+  );
+  return linhas.map((g) => ({
+    ...paraGasto(g as unknown as LinhaGasto),
+    grupo: (g as unknown as { grupo: { nome: string; cor: string } | null }).grupo ?? { nome: 'Grupo', cor: '#6B6E85' },
+  }));
 }

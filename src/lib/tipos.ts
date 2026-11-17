@@ -51,6 +51,7 @@ export type Grupo = {
   lembrete_dias: number;
   criado_por: string;
   permissoes: Permissoes;
+  metas: Partial<Record<Categoria, number>>;
 };
 
 export type ResumoGrupo = {

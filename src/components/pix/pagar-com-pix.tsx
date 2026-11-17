@@ -4,11 +4,11 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { QrCode } from '@/components/pix/qr';
-import { Aviso, Botao, Icone, Linha, Texto } from '@/components/ui';
+import { Aviso, Botao, Icone, Linha, Texto, Valor } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { textoDoErro, useChavePixDe } from '@/lib/consultas';
-import { reais, valorACobrar, type Decimal } from '@/lib/dinheiro';
+import { valorACobrar, type Decimal } from '@/lib/dinheiro';
 import { chaveParaMostrar, codigoPix } from '@/lib/pix';
 import { vibrarSucesso } from '@/lib/toque';
 
@@ -57,7 +57,7 @@ export function PagarComPix({
           </Linha>
           <View style={{ gap: 2 }}>
             <Texto variante="suave">Para {nomeCredor}</Texto>
-            <Texto variante="grande">{reais(cobrar)}</Texto>
+            <Valor valor={cobrar} />
           </View>
 
           {chave.isPending ? <Texto variante="suave">Buscando a chave…</Texto> : null}

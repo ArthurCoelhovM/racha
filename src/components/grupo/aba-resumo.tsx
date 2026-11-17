@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Svg, { Circle, G, Line, Polyline, Text as TextoSvg } from 'react-native-svg';
 
 import { ultimosMeses } from '@/components/grupo/filtros-de-gastos';
+import { GraficoDeLinhas, Legenda } from '@/components/graficos/linhas';
+import { Calendario, CustoPorPessoa, MetasDoMes, Previsao } from '@/components/graficos/mes';
 import { Dica } from '@/components/tutorial/dica';
-import { Avatar, Cartao, Ficha, Icone, Linha, Texto, Vazio, type NomeIcone } from '@/components/ui';
+import { Avatar, Cartao, Ficha, Icone, Linha, Texto, Vazio, type NomeIcone, Valor } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { dec, Decimal, reais } from '@/lib/dinheiro';
@@ -18,19 +19,44 @@ import {
   mesesAte,
   nomeDoMes,
   precoDoItem,
+  precoPorLoja,
   quemPagou,
   totaisPorMes,
 } from '@/lib/graficos';
-import { infoCategoria, type Gasto } from '@/lib/tipos';
+import { infoCategoria, type Gasto, type Grupo, type LancamentoPendente, type Recorrente } from '@/lib/tipos';
 
 const CORES_LINHAS = ['#5B4CF0', '#C2410C', '#0E7C3F', '#D92657'];
 
 // Aba "Resumo": o mês escolhido, a evolução ao longo do tempo e as compras do mercado
-export function AbaResumo({ gastos, eu, nome }: { gastos: Gasto[]; eu: string; nome: (u: string) => string }) {
+export function AbaResumo({
+  gastos,
+  eu,
+  nome,
+  grupo,
+  podeMudarMetas,
+  recorrentes,
+  pendentes,
+  aoMudar,
+}: {
+  gastos: Gasto[];
+  eu: string;
+  nome: (u: string) => string;
+  grupo: Grupo;
+  podeMudarMetas: boolean;
+  recorrentes: Recorrente[];
+  pendentes: LancamentoPendente[];
+  aoMudar: () => Promise<unknown>;
+}) {
   const meses = ultimosMeses(6);
   const [mes, setMes] = useState(meses[0].valor.slice(0, 7));
   if (gastos.length === 0) {
-    return <Vazio titulo="Nada para resumir ainda" texto="Os gráficos aparecem quando o grupo tiver gastos." />;
+    return (
+      <Vazio
+        desenho="grafico"
+        titulo="Nada para resumir ainda"
+        texto="Os gráficos aparecem quando o grupo tiver gastos."
+      />
+    );
   }
   const doMes = gastos.filter((g) => mesDe(g.data) === mes);
 
@@ -53,11 +79,17 @@ export function AbaResumo({ gastos, eu, nome }: { gastos: Gasto[]; eu: string; n
         ))}
       </ScrollView>
       <Comparacao gastos={gastos} mes={mes} eu={eu} />
+      {mes === meses[0].valor.slice(0, 7) ? (
+        <Previsao gastos={gastos} recorrentes={recorrentes} pendentes={pendentes} mes={mes} />
+      ) : null}
+      <MetasDoMes gastos={doMes} metas={grupo.metas} grupoId={grupo.id} podeMudar={podeMudarMetas} aoMudar={aoMudar} />
       <Categorias gastos={doMes} />
+      <Calendario gastos={gastos} mes={mes} />
       <QuemPagou gastos={doMes} nome={nome} />
 
       <Texto variante="subtitulo">Ao longo do tempo</Texto>
       <PorMes gastos={gastos} ate={mes} />
+      <CustoPorPessoa gastos={gastos} meses={mesesAte(mes, 6)} nome={nome} />
       <ContasFixas gastos={gastos} ate={mes} />
 
       <Texto variante="subtitulo">Mercado</Texto>
@@ -86,7 +118,7 @@ function Comparacao({ gastos, mes, eu }: { gastos: Gasto[]; mes: string; eu: str
   return (
     <Cartao>
       <Texto variante="rotulo">Gasto do grupo em {nomeDoMes(mes)}</Texto>
-      <Texto variante="grande">{reais(atual)}</Texto>
+      <Valor valor={atual} />
       {variacao !== null && media ? (
         <Linha style={{ gap: 6 }}>
           <Icone
@@ -327,121 +359,58 @@ function ItensDoMercado({ gastos }: { gastos: Gasto[] }) {
           />
         )}
       </Cartao>
+      <OndeMaisBarato gastos={gastos} chave={chave} nome={itens.find((i) => i.chave === chave)?.nome ?? ''} />
     </>
   );
 }
 
-function Legenda({ itens }: { itens: { nome: string; cor: string }[] }) {
-  return (
-    <Linha style={{ flexWrap: 'wrap', gap: 10 }}>
-      {itens.map((i) => (
-        <Linha key={i.nome} style={{ gap: 4 }}>
-          <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: i.cor }} />
-          <Texto variante="suave">{i.nome}</Texto>
-        </Linha>
-      ))}
-    </Linha>
-  );
-}
-
-// linhas em SVG; valores ausentes quebram a linha
-function GraficoDeLinhas({
-  rotulos,
-  series,
-  comValores = false,
-}: {
-  rotulos: string[];
-  series: { nome: string; cor: string; valores: (Decimal | null)[] }[];
-  comValores?: boolean;
-}) {
+// mercado: o preço médio do item em cada loja, do mais barato ao mais caro
+function OndeMaisBarato({ gastos, chave, nome }: { gastos: Gasto[]; chave: string; nome: string }) {
   const tema = useTema();
-  const [largura, setLargura] = useState(300);
-  const altura = 170;
-  const margem = {
-    esquerda: comValores ? 22 : 10,
-    direita: comValores ? 22 : 10,
-    cima: comValores ? 22 : 12,
-    baixo: 22,
-  };
-  const todos = series.flatMap((s) => s.valores.filter((v): v is Decimal => v !== null));
-  const maximo = todos.reduce((m, v) => Decimal.max(m, v), new Decimal(0));
-  const minimo = todos.reduce((m, v) => Decimal.min(m, v), maximo);
-  const faixa = maximo.minus(minimo).isZero() ? new Decimal(1) : maximo.minus(minimo);
-  const x = (i: number) =>
-    margem.esquerda +
-    (rotulos.length === 1 ? 0 : (i * (largura - margem.esquerda - margem.direita)) / (rotulos.length - 1));
-  const y = (v: Decimal) =>
-    margem.cima +
-    (altura - margem.cima - margem.baixo) * (1 - Number(v.minus(minimo).div(faixa).toFixed(4)) * 0.9 - 0.05);
-  const passo = Math.ceil(rotulos.length / 6);
-
+  const lojas = precoPorLoja(gastos, chave);
+  if (lojas.length === 0) return null;
+  const maior = lojas.reduce((m, l) => Decimal.max(m, l.medio), new Decimal(0));
+  const economia = lojas.length > 1 ? lojas[lojas.length - 1].medio.minus(lojas[0].medio) : null;
   return (
-    <View onLayout={(e) => setLargura(e.nativeEvent.layout.width)} accessibilityRole="image">
-      <Svg width={largura} height={altura}>
-        <Line
-          x1={margem.esquerda}
-          x2={largura - margem.direita}
-          y1={altura - margem.baixo}
-          y2={altura - margem.baixo}
-          stroke={tema.borda}
-        />
-        {series.map((s) => {
-          const trechos: { i: number; v: Decimal }[][] = [[]];
-          s.valores.forEach((v, i) => (v === null ? trechos.push([]) : trechos[trechos.length - 1].push({ i, v })));
-          return (
-            <G key={s.nome}>
-              {trechos
-                .filter((t) => t.length > 1)
-                .map((t, k) => (
-                  <Polyline
-                    key={k}
-                    points={t.map((p) => `${x(p.i)},${y(p.v)}`).join(' ')}
-                    fill="none"
-                    stroke={s.cor}
-                    strokeWidth={2.5}
-                    strokeLinejoin="round"
-                  />
-                ))}
-              {s.valores.map((v, i) =>
-                v === null ? null : (
-                  <Circle key={i} cx={x(i)} cy={y(v)} r={3.5} fill={s.cor} stroke={tema.superficie} strokeWidth={1.5} />
-                ),
-              )}
-              {comValores
-                ? s.valores.map((v, i) =>
-                    v === null ? null : (
-                      <TextoSvg
-                        key={`t${i}`}
-                        x={x(i)}
-                        y={y(v) - 8}
-                        fontSize={10}
-                        fontFamily="sans-serif"
-                        fill={tema.texto}
-                        textAnchor="middle">
-                        {v.toFixed(2).replace('.', ',')}
-                      </TextoSvg>
-                    ),
-                  )
-                : null}
-            </G>
-          );
-        })}
-        {rotulos.map((r, i) =>
-          i % passo === 0 || i === rotulos.length - 1 ? (
-            <TextoSvg
-              key={`r${i}`}
-              x={x(i)}
-              y={altura - 6}
-              fontSize={10}
-              fontFamily="sans-serif"
-              fill={tema.textoSuave}
-              textAnchor={i === 0 ? 'start' : i === rotulos.length - 1 ? 'end' : 'middle'}>
-              {r}
-            </TextoSvg>
-          ) : null,
-        )}
-      </Svg>
-    </View>
+    <Cartao>
+      <Titulo
+        titulo={`Onde ${nome} sai mais barato`}
+        dica="Preço médio em cada lugar, pelo nome do gasto (no cupom, é o nome da loja)."
+      />
+      {lojas.map((l, i) => (
+        <View key={l.loja} style={{ gap: 4 }}>
+          <Linha>
+            {i === 0 && lojas.length > 1 ? <Icone nome="trophy-outline" tamanho={16} cor={tema.positivo} /> : null}
+            <Texto style={{ flex: 1 }} numberOfLines={1}>
+              {l.loja}
+            </Texto>
+            <Texto variante="forte" cor={i === 0 && lojas.length > 1 ? tema.positivo : undefined}>
+              {reais(l.medio)}
+            </Texto>
+          </Linha>
+          <View style={[estilos.trilho, { backgroundColor: tema.superficie2 }]}>
+            <View
+              style={[
+                estilos.barra,
+                {
+                  width: `${Math.max(Number(l.medio.div(maior).times(100).toFixed(1)), 2)}%`,
+                  backgroundColor: i === 0 && lojas.length > 1 ? tema.positivo : tema.textoSuave,
+                },
+              ]}
+            />
+          </View>
+          <Texto variante="suave">
+            {l.vezes} {l.vezes === 1 ? 'compra' : 'compras'} · última em {diaCurto(l.ultima)}
+          </Texto>
+        </View>
+      ))}
+      {economia && economia.gt(0) ? (
+        <Texto variante="suave">
+          Comprando em {lojas[0].loja}, cada {nome} sai {reais(economia)} mais barato que em{' '}
+          {lojas[lojas.length - 1].loja}.
+        </Texto>
+      ) : null}
+    </Cartao>
   );
 }
 

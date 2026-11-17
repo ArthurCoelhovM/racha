@@ -31,6 +31,7 @@ import {
   paginaDeGastos,
   pendenciasDeGruposQueSai,
   buscarGastos,
+  buscarEmTodos,
   chavePixDe,
   conferirGrupo,
   extratoCom,
@@ -224,6 +225,15 @@ export function useMeusGastos() {
     queryFn: ({ pageParam }) => paginaDeMeusGastos(pageParam, POR_PAGINA),
     initialPageParam: 0,
     getNextPageParam: (ultima, todas) => (ultima.length < POR_PAGINA ? undefined : todas.length * POR_PAGINA),
+  });
+}
+
+export function useBuscaGeral(texto: string) {
+  return useQuery({
+    queryKey: ['meus-gastos', 'busca', texto],
+    queryFn: () => buscarEmTodos(texto),
+    enabled: texto.trim().length >= 2,
+    placeholderData: (anterior) => anterior,
   });
 }
 

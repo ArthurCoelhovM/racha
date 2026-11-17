@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { useDesfazer } from '@/components/desfazer';
 import { Aviso, Botao, Campo, Cartao, Interruptor, Texto } from '@/components/ui';
 import { espaco } from '@/constants/tema';
 import { arquivarGrupo, definirApelido, mensagemDeErro } from '@/lib/api';
@@ -23,6 +24,7 @@ export function SoParaVoce({
   const [texto, setTexto] = useState(apelido ?? '');
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<{ texto: string; tipo: 'ok' | 'erro' } | null>(null);
+  const desfazer = useDesfazer();
 
   async function salvarApelido() {
     setSalvando(true);
@@ -43,10 +45,15 @@ export function SoParaVoce({
     try {
       await arquivarGrupo(grupoId, valor);
       await cliente.invalidateQueries({ queryKey: chaves.inicio });
-      setMensagem({
+      desfazer({
         texto: valor ? 'Grupo arquivado: ele fica em "Arquivados" na tela inicial.' : 'Grupo de volta na lista.',
-        tipo: 'ok',
+        desfazer: async () => {
+          await arquivarGrupo(grupoId, !valor);
+          await cliente.invalidateQueries({ queryKey: chaves.inicio });
+          await aoMudar();
+        },
       });
+      await aoMudar();
     } catch (e) {
       setMensagem({ texto: mensagemDeErro(e), tipo: 'erro' });
     }
