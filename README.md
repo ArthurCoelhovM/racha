@@ -85,6 +85,7 @@ Detalhes da produção:
    - `20261112110000_papeis_centavos_historico.sql` (papéis, centavos exatos, quem saiu; converte os valores antigos)
    - `20261112120000_cobrar.sql`
    - `20261112130000_funcionalidades.sql` (categorias, valor variável, busca, arquivar, apelido, comprovante, comentários, meus dados)
+   - `20261117100000_conferir_pix_passos.sql` (extrato e conferência do grupo, chave Pix, primeiros passos)
 
    Se você já tinha rodado os primeiros, rode só os que faltam, na ordem. Com a CLI, `npx supabase db push` faz isso sozinho.
 3. Em **Authentication > Sign In / Providers > Email**, desligue **Confirm email**. O envio de e-mail padrão do Supabase só entrega para pessoas da equipe do projeto e no máximo 2 por hora, então seus amigos não receberiam a confirmação. Para recuperar senha por e-mail, configure um SMTP próprio (Brevo e Resend têm plano grátis) em **Authentication > Emails > SMTP Settings**.

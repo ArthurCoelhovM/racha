@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Alteracoes } from '@/components/gasto/alteracoes';
@@ -14,6 +14,8 @@ import { SeletorDeDivisao, type EstadoDivisao } from '@/components/gasto/seletor
 import { SeletorDePagadores } from '@/components/gasto/seletor-de-pagadores';
 import { CampoData } from '@/components/campo-data';
 import { CampoValor } from '@/components/gasto/campo-valor';
+import { SugestoesDeDescricao } from '@/components/gasto/sugestoes';
+import { Dica } from '@/components/tutorial/dica';
 import { Aviso, Botao, Campo, CoresDoGrupo, Esqueleto, Ficha, Fichas, Icone, Tela, Texto } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
@@ -21,6 +23,7 @@ import { criarRecorrente, excluirGasto, mensagemDeErro, preencherLancamento, sal
 import {
   textoDoErro,
   useGasto,
+  useGastosRecentes,
   useGrupo,
   useHistoricoDoGasto,
   useInicio,
@@ -49,11 +52,12 @@ import {
 import { lembrarGrupo } from '@/lib/ultimo-grupo';
 
 export default function TelaGasto() {
-  const { id, gastoId, escolher, pendente } = useLocalSearchParams<{
+  const { id, gastoId, escolher, pendente, cupom } = useLocalSearchParams<{
     id: string;
     gastoId?: string;
     escolher?: string;
     pendente?: string;
+    cupom?: string;
   }>();
   const pendentes = usePendentes(id);
   const escolherGrupo = !gastoId && escolher === '1';
@@ -150,6 +154,7 @@ export default function TelaGasto() {
         historico={registros}
         topo={topo}
         escolherGrupo={escolherGrupo}
+        abrirCupom={cupom === '1'}
       />
     </CoresDoGrupo>
   );
@@ -175,6 +180,7 @@ function Formulario({
   historico,
   topo,
   escolherGrupo,
+  abrirCupom,
 }: {
   grupo: Grupo;
   membros: Membro[];
@@ -186,6 +192,7 @@ function Formulario({
   historico: RegistroHistorico[];
   topo: ReactNode;
   escolherGrupo: boolean;
+  abrirCupom: boolean;
 }) {
   const tema = useTema();
   const ids = membros.map((m) => m.usuario_id);
@@ -244,6 +251,35 @@ function Formulario({
   const [frequencia, setFrequencia] = useState<Frequencia>('mensal');
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const novo = !gasto && !pendenteId;
+  const recentes = useGastosRecentes(grupo.id, novo);
+  const [sugestaoEscolhida, setSugestaoEscolhida] = useState<string | null>(null);
+
+  // "Ler cupom" do menu +: o leitor abre por cima deste formulário, que recebe a nota quando ele fecha
+  const cupomAberto = useRef(false);
+  useEffect(() => {
+    if (!abrirCupom || cupomAberto.current) return;
+    cupomAberto.current = true;
+    router.push({ pathname: '/grupo/[id]/cupom', params: { id: grupo.id } });
+  }, [abrirCupom, grupo.id]);
+
+  // escolher uma descrição usada antes traz a categoria, quem pagou e a divisão daquela vez
+  function usarSugestao(g: Gasto) {
+    setDescricao(g.descricao);
+    setSugestaoEscolhida(g.descricao);
+    setCategoria(g.categoria);
+    if (g.pagadores.length === 1 && ativos.includes(g.pagadores[0].usuario_id)) {
+      setVarios(false);
+      setPagadorUnico(g.pagadores[0].usuario_id);
+    }
+    const pessoas = g.divisoes.map((d) => d.usuario_id);
+    const todosAqui = pessoas.every((u) => ativos.includes(u));
+    if (!todosAqui || !permitidos.includes(g.tipo_divisao)) return;
+    if (g.tipo_divisao === 'igual') mudarDivisao({ tipo: 'igual', selecionados: pessoas });
+    else if (g.tipo_divisao === 'porcentagem')
+      mudarDivisao({ tipo: 'porcentagem', porcentagens: porPessoa(g, 'parametro', false) });
+    else if (g.tipo_divisao === 'cotas') mudarDivisao({ tipo: 'cotas', cotas: porPessoa(g, 'parametro', false) });
+  }
 
   // recebe a nota quando a tela do leitor termina
   useEffect(
@@ -368,10 +404,21 @@ function Formulario({
         placeholder="Mercado, luz, pizza..."
         maxLength={80}
       />
+      {novo && descricao !== sugestaoEscolhida ? (
+        <SugestoesDeDescricao gastos={recentes.data ?? []} texto={descricao} nome={nome} aoEscolher={usarSugestao} />
+      ) : null}
 
       <SeletorDeCategoria valor={categoria} aoMudar={setCategoria} />
 
       <CampoData valor={data} aoMudar={setData} />
+
+      {novo ? (
+        <Dica
+          id="gasto-mudar"
+          titulo="Dividir diferente"
+          texto="Sem mexer, fica: você pagou e dividiu igual entre todos. Toque em Mudar para escolher quem pagou e como dividir."
+        />
+      ) : null}
 
       <Pressable
         accessibilityRole="button"

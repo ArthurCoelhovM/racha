@@ -31,7 +31,14 @@ import {
   paginaDeGastos,
   pendenciasDeGruposQueSai,
   buscarGastos,
+  chavePixDe,
+  conferirGrupo,
+  extratoCom,
   listarGastos,
+  minhaChavePix,
+  nomesConhecidos,
+  paginaDeMeusGastos,
+  primeirosPassos,
   temFiltro,
   type Filtros,
 } from './api';
@@ -68,6 +75,10 @@ export const chaves = {
   gasto: (id: string) => ['gasto', id] as const,
   historicoDoGasto: (id: string) => ['gasto', id, 'historico'] as const,
   fora: ['fora'] as const,
+  meusGastos: ['meus-gastos'] as const,
+  passos: ['passos'] as const,
+  extrato: (id: string, outro: string) => ['grupo', id, 'extrato', outro] as const,
+  conferir: (id: string) => ['grupo', id, 'conferir'] as const,
 };
 
 // ao voltar para uma tela, atualiza o que estiver velho (não na primeira abertura)
@@ -144,6 +155,16 @@ export function useTodosGastos(id: string, habilitado: boolean) {
   return useQuery({ queryKey: ['grupo', id, 'todos-gastos'], queryFn: () => listarGastos(id), enabled: habilitado });
 }
 
+// os últimos gastos do grupo, para sugerir a descrição de um gasto novo
+export function useGastosRecentes(id: string, habilitado: boolean) {
+  return useQuery({
+    queryKey: ['grupo', id, 'recentes'],
+    queryFn: () => listarGastos(id, 300),
+    enabled: habilitado,
+    staleTime: 60_000,
+  });
+}
+
 export function useBusca(id: string, filtros: Filtros) {
   return useQuery({
     queryKey: ['grupo', id, 'busca', filtros],
@@ -181,6 +202,43 @@ export function useGasto(id: string | undefined) {
   });
 }
 
+export function useExtrato(grupoId: string, outro: string | null) {
+  return useQuery({
+    queryKey: chaves.extrato(grupoId, outro ?? ''),
+    queryFn: () => extratoCom(grupoId, outro!),
+    enabled: !!outro,
+  });
+}
+
+export function useConferir(grupoId: string, habilitado: boolean) {
+  return useQuery({ queryKey: chaves.conferir(grupoId), queryFn: () => conferirGrupo(grupoId), enabled: habilitado });
+}
+
+export function usePrimeirosPassos(habilitado: boolean) {
+  return useQuery({ queryKey: chaves.passos, queryFn: primeirosPassos, enabled: habilitado });
+}
+
+export function useMeusGastos() {
+  return useInfiniteQuery({
+    queryKey: chaves.meusGastos,
+    queryFn: ({ pageParam }) => paginaDeMeusGastos(pageParam, POR_PAGINA),
+    initialPageParam: 0,
+    getNextPageParam: (ultima, todas) => (ultima.length < POR_PAGINA ? undefined : todas.length * POR_PAGINA),
+  });
+}
+
+export function useNomesConhecidos() {
+  return useQuery({ queryKey: ['nomes'], queryFn: nomesConhecidos, staleTime: 5 * 60_000 });
+}
+
+export function useMinhaChavePix(id: string | null) {
+  return useQuery({ queryKey: ['minha-chave', id], queryFn: () => minhaChavePix(id!), enabled: !!id });
+}
+
+export function useChavePixDe(usuarioId: string | null) {
+  return useQuery({ queryKey: ['chave-pix', usuarioId], queryFn: () => chavePixDe(usuarioId!), enabled: !!usuarioId });
+}
+
 // depois de qualquer mudança num grupo, tudo dele (e a tela inicial) fica velho
 export function useInvalidarGrupo() {
   const cliente = useQueryClient();
@@ -191,6 +249,8 @@ export function useInvalidarGrupo() {
         cliente.invalidateQueries({ queryKey: ['gasto'] }),
         cliente.invalidateQueries({ queryKey: chaves.inicio }),
         cliente.invalidateQueries({ queryKey: chaves.fora }),
+        cliente.invalidateQueries({ queryKey: chaves.meusGastos }),
+        cliente.invalidateQueries({ queryKey: chaves.passos }),
       ]),
     [cliente],
   );

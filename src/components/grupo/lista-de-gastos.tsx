@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Botao, Cartao, Icone, Linha, Separador, Texto, Vazio, type NomeIcone } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
+import { agruparPorData } from '@/lib/agrupar';
 import { dec, reais, reaisCobrar } from '@/lib/dinheiro';
-import { diaCurto, isoParaBr } from '@/lib/formatos';
+import { diaCurto, hojeIso, isoParaBr } from '@/lib/formatos';
 import type { Pendencia } from '@/lib/saldos';
 import { infoCategoria, type Gasto, type LancamentoPendente, type Recorrente } from '@/lib/tipos';
 
@@ -108,14 +110,12 @@ export function ListaDeGastos({
   }
   return (
     <>
-      <Cartao style={{ padding: 0, gap: 0 }}>
-        {gastos.map((g, i) => (
-          <View key={g.id}>
-            {i > 0 ? <Separador /> : null}
-            <LinhaGasto g={g} eu={eu} nome={nome} pago={gastoPago(g, pendencias)} aoAbrir={() => aoAbrir(g)} />
-          </View>
-        ))}
-      </Cartao>
+      <GastosPorData
+        gastos={gastos}
+        linha={(g) => (
+          <LinhaGasto g={g} eu={eu} nome={nome} pago={gastoPago(g, pendencias)} aoAbrir={() => aoAbrir(g)} />
+        )}
+      />
       {gastos.length < total ? (
         <Botao
           titulo={`Ver mais gastos (${total - gastos.length})`}
@@ -128,18 +128,49 @@ export function ListaDeGastos({
   );
 }
 
-function LinhaGasto({
+// "Hoje", "Ontem", "Esta semana", depois cada mês, com o subtotal à direita
+export function GastosPorData<T extends Gasto>({ gastos, linha }: { gastos: T[]; linha: (g: T) => ReactNode }) {
+  const blocos = agruparPorData(gastos, hojeIso());
+  return (
+    <>
+      {blocos.map((b) => (
+        <View key={b.titulo} style={{ gap: 6 }}>
+          <Linha style={estilos.titulo}>
+            <Texto variante="rotulo" style={{ flex: 1 }}>
+              {b.titulo}
+            </Texto>
+            <Texto variante="suave" style={{ fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+              {reais(b.total)}
+            </Texto>
+          </Linha>
+          <Cartao style={{ padding: 0, gap: 0 }}>
+            {b.itens.map((g, i) => (
+              <View key={g.id}>
+                {i > 0 ? <Separador /> : null}
+                {linha(g)}
+              </View>
+            ))}
+          </Cartao>
+        </View>
+      ))}
+    </>
+  );
+}
+
+export function LinhaGasto({
   g,
   eu,
   nome,
   pago,
   aoAbrir,
+  grupo,
 }: {
   g: Gasto;
   eu: string;
   nome: (u: string) => string;
   pago: boolean;
   aoAbrir: () => void;
+  grupo?: { nome: string; cor: string };
 }) {
   const tema = useTema();
   const minhaParte = g.divisoes.find((d) => d.usuario_id === eu);
@@ -155,6 +186,14 @@ function LinhaGasto({
           <Texto variante="forte" numberOfLines={1}>
             {g.descricao}
           </Texto>
+          {grupo ? (
+            <Linha style={{ gap: 6 }}>
+              <View style={[estilos.bolinha, { backgroundColor: grupo.cor }]} />
+              <Texto variante="suave" numberOfLines={1} style={{ flexShrink: 1, fontWeight: '600' }}>
+                {grupo.nome}
+              </Texto>
+            </Linha>
+          ) : null}
           <Texto variante="suave" numberOfLines={1}>
             {diaCurto(g.data)} · pago por {pagou}
             {g.recorrente_id ? ' ↻' : ''}
@@ -182,5 +221,7 @@ function LinhaGasto({
 const estilos = StyleSheet.create({
   linha: { padding: espaco.g, gap: espaco.m },
   icone: { width: 40, height: 40, borderRadius: raio.m, alignItems: 'center', justifyContent: 'center' },
+  titulo: { paddingHorizontal: 4, paddingTop: espaco.m },
+  bolinha: { width: 8, height: 8, borderRadius: 4 },
   selo: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 },
 });

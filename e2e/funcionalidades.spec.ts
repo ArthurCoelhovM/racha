@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { api, botao, campo, criarPessoa, entrar, texto } from './apoio';
+import { aba, api, botao, campo, criarPessoa, entrar, texto } from './apoio';
 
 const sufixo = `${Date.now()}`;
 
@@ -68,7 +68,7 @@ test('categorias, busca, resumo com gráficos, comentários, apelido e arquivar'
   await texto(page, 'Casa', true).click();
 
   // busca pelo item do cupom
-  await page.getByRole('tab', { name: /Gastos/ }).click();
+  await aba(page, /^Gastos \(/).click();
   await page.getByLabel('Buscar gastos').fill('café');
   await expect(texto(page, 'Luz', true)).toBeHidden();
   await expect(texto(page, 'Feira', true)).toBeVisible();
@@ -76,7 +76,7 @@ test('categorias, busca, resumo com gráficos, comentários, apelido e arquivar'
   await expect(texto(page, 'Luz', true)).toBeVisible();
 
   // resumo com os gráficos
-  await page.getByRole('tab', { name: 'Resumo' }).click();
+  await aba(page, 'Resumo').click();
   await expect(texto(page, 'Em que o grupo gastou')).toBeVisible();
   await expect(texto(page, 'Quem pagou o quê')).toBeVisible();
   await expect(texto(page, 'Contas fixas no ano')).toBeVisible();
@@ -84,7 +84,7 @@ test('categorias, busca, resumo com gráficos, comentários, apelido e arquivar'
   await expect(texto(page, '2 compras · média R$ 30,00')).toBeVisible();
 
   // comentário no gasto
-  await page.getByRole('tab', { name: /Gastos/ }).click();
+  await aba(page, /^Gastos \(/).click();
   await texto(page, 'Luz', true).click();
   await campo(page, 'Comentário').fill('Veio mais alta este mês?');
   await botao(page, 'Comentar').click();

@@ -1,12 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ChavePix } from '@/components/pix/chave-pix';
 import { Aviso, Botao, Campo, Cartao, Interruptor, Separador, Tela, Texto } from '@/components/ui';
 import { atualizarMeuNome, buscarMeuPerfil, excluirMinhaConta, mensagemDeErro, meusDados } from '@/lib/api';
 import { exportarCsv } from '@/lib/csv';
 import { ativarPush, desativarPush, situacaoPush, type SituacaoPush } from '@/lib/push';
 import { useSessao } from '@/lib/sessao';
 import { supabase } from '@/lib/supabase';
+import { reverTutorial } from '@/lib/tutorial';
 
 export default function Conta() {
   const { usuarioId, sessao } = useSessao();
@@ -104,6 +106,8 @@ export default function Conta() {
       <Campo rotulo="Seu nome no grupo" value={nome} onChangeText={setNome} onSubmitEditing={salvar} />
       <Botao titulo="Salvar nome" aoPressionar={salvar} carregando={salvando} />
 
+      {usuarioId ? <ChavePix usuarioId={usuarioId} /> : null}
+
       <Cartao>
         {push?.disponivel ? (
           <Interruptor
@@ -124,6 +128,14 @@ export default function Conta() {
 
       {aviso ? <Aviso texto={aviso.texto} tipo={aviso.tipo} /> : null}
 
+      <Botao
+        titulo="Ver as dicas de novo"
+        variante="secundario"
+        aoPressionar={() => {
+          reverTutorial();
+          setAviso({ texto: 'As dicas e os primeiros passos voltam a aparecer.', tipo: 'ok' });
+        }}
+      />
       <Botao titulo="Trocar senha" variante="secundario" aoPressionar={() => router.push('/nova-senha')} />
       <Botao titulo="Política de privacidade" variante="secundario" aoPressionar={() => router.push('/privacidade')} />
       <Botao

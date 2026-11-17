@@ -31,6 +31,8 @@ export function ListaDeDividas({
   marcando,
   aoPagar,
   aoCobrar,
+  aoPix,
+  aoVerExtrato,
 }: {
   pendencias: Pendencia[];
   eu: string;
@@ -39,6 +41,8 @@ export function ListaDeDividas({
   marcando: string | null;
   aoPagar: (p: Pendencia) => void;
   aoCobrar: (devedor: string) => void;
+  aoPix: (p: Pendencia) => void;
+  aoVerExtrato: (outro: string) => void;
 }) {
   const tema = useTema();
   if (pendencias.length === 0) {
@@ -74,6 +78,9 @@ export function ListaDeDividas({
                       {pares.get(`${p.devedor}|${p.credor}`)!.length} gastos
                     </Texto>
                   </View>
+                  {p.devedor === eu ? (
+                    <BotaoPix rotulo={`Pagar com Pix a ${nome(outro)}`} aoPressionar={() => aoPix(p)} />
+                  ) : null}
                   <BotaoPagar
                     titulo={p.devedor === eu ? 'Paguei' : 'Recebi'}
                     rotulo={`Acertar tudo com ${nome(outro)}`}
@@ -98,6 +105,8 @@ export function ListaDeDividas({
               carregando={marcando === p.chave}
               aoPagar={() => aoPagar(p)}
               aoCobrar={() => aoCobrar(p.devedor)}
+              aoPix={() => aoPix(p)}
+              aoVerExtrato={() => aoVerExtrato(p.devedor === eu ? p.credor : p.devedor)}
             />
           </View>
         ))}
@@ -113,6 +122,8 @@ function LinhaPendencia({
   carregando,
   aoPagar,
   aoCobrar,
+  aoPix,
+  aoVerExtrato,
 }: {
   p: Pendencia;
   nome: (u: string) => string;
@@ -120,12 +131,23 @@ function LinhaPendencia({
   carregando: boolean;
   aoPagar: () => void;
   aoCobrar: () => void;
+  aoPix: () => void;
+  aoVerExtrato: () => void;
 }) {
   const tema = useTema();
   const devo = p.devedor === eu;
   const recebo = p.credor === eu;
+  // tocar na linha abre o extrato com a outra pessoa
   return (
-    <Linha style={estilos.linha}>
+    <Pressable
+      onPress={devo || recebo ? aoVerExtrato : undefined}
+      disabled={!devo && !recebo}
+      accessibilityLabel={
+        devo || recebo
+          ? `Extrato com ${nome(devo ? p.credor : p.devedor)}: ${nome(p.devedor)} deve ${reais(p.cobrar)}`
+          : undefined
+      }
+      style={({ pressed }) => [estilos.linha, estilos.linhaToque, { opacity: pressed ? 0.85 : 1 }]}>
       <View style={estilos.avatares}>
         <Avatar id={p.devedor} nome={nome(p.devedor)} tamanho={30} />
         <View style={[estilos.segundo, { borderColor: tema.superficie }]}>
@@ -156,6 +178,7 @@ function LinhaPendencia({
           <Icone nome="megaphone-outline" tamanho={18} cor={tema.primaria} />
         </Pressable>
       ) : null}
+      {devo ? <BotaoPix rotulo={`Pagar com Pix a ${nome(p.credor)}`} aoPressionar={aoPix} /> : null}
       {devo || recebo ? (
         <BotaoPagar
           titulo={devo ? 'Paguei' : 'Recebi'}
@@ -164,7 +187,21 @@ function LinhaPendencia({
           aoPressionar={aoPagar}
         />
       ) : null}
-    </Linha>
+    </Pressable>
+  );
+}
+
+function BotaoPix({ rotulo, aoPressionar }: { rotulo: string; aoPressionar: () => void }) {
+  const tema = useTema();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={rotulo}
+      onPress={aoPressionar}
+      hitSlop={6}
+      style={({ pressed }) => [estilos.pix, { backgroundColor: tema.superficie2, opacity: pressed ? 0.7 : 1 }]}>
+      <Icone nome="qr-code-outline" tamanho={18} cor={tema.primaria} />
+    </Pressable>
   );
 }
 
@@ -211,5 +248,7 @@ const estilos = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: raio.total,
   },
+  linhaToque: { flexDirection: 'row' },
+  pix: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   cobrar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });

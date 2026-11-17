@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Svg, { Circle, G, Line, Polyline, Text as TextoSvg } from 'react-native-svg';
 
 import { ultimosMeses } from '@/components/grupo/filtros-de-gastos';
+import { Dica } from '@/components/tutorial/dica';
 import { Avatar, Cartao, Ficha, Icone, Linha, Texto, Vazio, type NomeIcone } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
@@ -35,6 +36,11 @@ export function AbaResumo({ gastos, eu, nome }: { gastos: Gasto[]; eu: string; n
 
   return (
     <View style={{ gap: espaco.g }}>
+      <Dica
+        id="resumo-mes"
+        titulo="Escolha o mês aqui embaixo"
+        texto="Os números e gráficos da primeira parte são do mês escolhido. Mais para baixo vêm os meses lado a lado e as compras do mercado."
+      />
       <Texto variante="subtitulo">Mês</Texto>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {meses.map((m) => (

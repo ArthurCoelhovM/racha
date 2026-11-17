@@ -1,10 +1,11 @@
-import { router, Stack } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { DicaInstalar } from '@/components/dica-instalar';
 import { GruposQueDeixei } from '@/components/inicio/grupos-que-deixei';
-import { Aviso, Botao, BotaoFlutuante, BotaoIcone, Esqueleto, Linha, Tela, Texto, Vazio } from '@/components/ui';
+import { PrimeirosPassos } from '@/components/tutorial/primeiros-passos';
+import { Aviso, Botao, Esqueleto, Linha, Tela, Texto, Vazio } from '@/components/ui';
 import { espaco, raio } from '@/constants/tema';
 import { useTema } from '@/hooks/use-tema';
 import { textoDoErro, useAtualizarAoFocar, useInicio, usePuxar } from '@/lib/consultas';
@@ -33,12 +34,12 @@ export default function Grupos() {
   const grupos = dados?.grupos ?? [];
   const ativos = grupos.filter((g) => !g.arquivado);
   const arquivados = grupos.filter((g) => g.arquivado);
-  const naoLidos = dados?.naoLidos ?? 0;
   const totalDevo = grupos.reduce((s, g) => s.plus(dec(g.voce_deve)), new Decimal(0));
   const totalMeDevem = grupos.reduce((s, g) => s.plus(dec(g.te_devem)), new Decimal(0));
 
-  // "+ Gasto" já abre no último grupo usado (ou no primeiro da lista), com a troca de grupo no topo
+  // gasto novo já abre no último grupo usado (ou no primeiro da lista), com a troca de grupo no topo
   function novoGasto() {
+    if (grupos.length === 0) return router.push('/grupo/novo');
     const ultimo = ultimoGrupo();
     const lista = ativos.length ? ativos : grupos;
     const id = lista.some((g) => g.grupo_id === ultimo) ? ultimo! : lista[0].grupo_id;
@@ -46,30 +47,13 @@ export default function Grupos() {
   }
 
   return (
-    <Tela
-      aoAtualizar={puxar}
-      atualizando={atualizando}
-      sobreposto={grupos.length > 0 ? <BotaoFlutuante titulo="+ Gasto" aoPressionar={novoGasto} /> : undefined}>
-      <Stack.Screen
-        options={{
-          headerRight: () => (
-            <Linha style={{ gap: 6, paddingHorizontal: 4 }}>
-              <BotaoIcone
-                icone="notifications-outline"
-                rotulo="Avisos"
-                contador={naoLidos}
-                aoPressionar={() => router.push('/avisos')}
-              />
-              <BotaoIcone icone="person-circle-outline" rotulo="Sua conta" aoPressionar={() => router.push('/conta')} />
-            </Linha>
-          ),
-        }}
-      />
-
+    <Tela aoAtualizar={puxar} atualizando={atualizando}>
       {carregando ? <Esqueleto comResumo={false} linhas={3} /> : null}
       {erro ? <Aviso texto={erro} acao="Tentar de novo" aoAcionar={() => recarregar()} /> : null}
 
       <DicaInstalar />
+
+      {!carregando && !erro ? <PrimeirosPassos grupos={ativos} aoNovoGasto={novoGasto} /> : null}
 
       {!carregando && grupos.length > 0 ? (
         <View style={estilos.totais}>

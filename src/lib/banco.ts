@@ -698,6 +698,7 @@ export type Database = {
       };
       perfis: {
         Row: {
+          chave_pix: string | null;
           criado_em: string;
           email: string | null;
           id: string;
@@ -706,6 +707,7 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          chave_pix?: string | null;
           criado_em?: string;
           email?: string | null;
           id: string;
@@ -713,6 +715,7 @@ export type Database = {
           push_token?: string | null;
         };
         Update: {
+          chave_pix?: string | null;
           criado_em?: string;
           email?: string | null;
           id?: string;
@@ -886,6 +889,16 @@ export type Database = {
       codigo_do_grupo: { Args: { p_grupo: string }; Returns: string };
       comentar: { Args: { p_gasto: string; p_texto: string }; Returns: number };
       compartilha_grupo: { Args: { outro: string }; Returns: boolean };
+      conferir_grupo: {
+        Args: { p_grupo: string };
+        Returns: {
+          data: string;
+          descricao: string;
+          detalhe: string;
+          gasto_id: string;
+          tipo: string;
+        }[];
+      };
       criar_grupo: {
         Args: {
           p_abatimento?: boolean;
@@ -915,6 +928,18 @@ export type Database = {
       eh_membro: { Args: { g: string }; Returns: boolean };
       entrar_no_grupo: { Args: { p_codigo: string }; Returns: string };
       excluir_gasto: { Args: { p_id: string }; Returns: undefined };
+      extrato_com: {
+        Args: { p_grupo: string; p_outro: string };
+        Returns: {
+          criado_em: string;
+          data: string;
+          descricao: string;
+          efeito: number;
+          gasto_id: string;
+          tipo: string;
+          valor_total: number;
+        }[];
+      };
       garantir_dono: { Args: { p_grupo: string }; Returns: undefined };
       gerar_codigo: { Args: Record<PropertyKey, never>; Returns: string };
       gerar_lembretes: { Args: Record<PropertyKey, never>; Returns: number };
@@ -974,6 +999,7 @@ export type Database = {
       permissoes_validas: { Args: { p: Json }; Returns: boolean };
       pode: { Args: { acao: string; g: string }; Returns: boolean };
       preencher_lancamento: { Args: { p: Json; p_pendente: string }; Returns: string };
+      primeiros_passos: { Args: Record<PropertyKey, never>; Returns: Json };
       proxima_ocorrencia: { Args: { d: string; dia: number; frequencia: string }; Returns: string };
       reais: { Args: { v: number }; Returns: string };
       recalcular_saldo_par: { Args: { c: string; d: string; g: string }; Returns: undefined };

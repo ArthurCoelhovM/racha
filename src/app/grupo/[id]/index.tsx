@@ -5,6 +5,9 @@ import { Abas } from '@/components/grupo/abas';
 import { Historico } from '@/components/grupo/historico';
 import { ListaDeDividas } from '@/components/grupo/lista-de-dividas';
 import { AbaResumo } from '@/components/grupo/aba-resumo';
+import { Conferir } from '@/components/grupo/conferir';
+import { PagarComPix } from '@/components/pix/pagar-com-pix';
+import { Dica } from '@/components/tutorial/dica';
 import { FiltrosDeGastos, SEM_FILTRO } from '@/components/grupo/filtros-de-gastos';
 import { ContasSemValor, ListaDeGastos, ListaDeRecorrentes } from '@/components/grupo/lista-de-gastos';
 import { ResumoDoGrupo } from '@/components/grupo/resumo-do-grupo';
@@ -38,7 +41,7 @@ import {
   usePuxar,
 } from '@/lib/consultas';
 import { exportarCsv, gastosEmCsv } from '@/lib/csv';
-import { reais } from '@/lib/dinheiro';
+import { Decimal, reais } from '@/lib/dinheiro';
 import { meuPapel, pode } from '@/lib/permissoes';
 import { resumoDoUsuario, type Pendencia } from '@/lib/saldos';
 import { vibrarSucesso } from '@/lib/toque';
@@ -46,11 +49,11 @@ import { useSessao } from '@/lib/sessao';
 import type { Recorrente } from '@/lib/tipos';
 
 type Aba = 'dividas' | 'gastos' | 'resumo' | 'historico';
-type Visao = 'lista' | 'pessoas' | 'grafico';
+type Visao = 'lista' | 'pessoas' | 'grafico' | 'conferir';
 type Mensagem = { texto: string; tipo: 'ok' | 'erro'; pagamentoId?: string };
 
 export default function TelaGrupo() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ver } = useLocalSearchParams<{ id: string; ver?: string }>();
   const { usuarioId } = useSessao();
   const eu = usuarioId ?? '';
 
@@ -66,7 +69,9 @@ export default function TelaGrupo() {
   const desfazerPagamento = useDesfazerPagamento(id);
 
   const [aba, setAba] = useState<Aba>('dividas');
-  const [visao, setVisao] = useState<Visao>('lista');
+  const [visao, setVisao] = useState<Visao>(ver === 'conferir' ? 'conferir' : 'lista');
+  const [pessoaExtrato, setPessoaExtrato] = useState<string | null>(null);
+  const [pix, setPix] = useState<Pendencia | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [exportando, setExportando] = useState(false);
   const [filtros, setFiltros] = useState<Filtros>(SEM_FILTRO);
@@ -212,6 +217,16 @@ export default function TelaGrupo() {
 
         <ResumoDoGrupo grupo={g} membros={membros.data} voceDeve={voceDeve} teDevem={teDevem} />
 
+        <Dica
+          id="grupo-abatimento"
+          titulo={g.abatimento ? 'Abatimento direto' : 'Cada gasto, uma dívida'}
+          texto={
+            g.abatimento
+              ? 'Se você deve R$ 30 à Bia e ela te deve R$ 10, você só paga R$ 20. O abatimento é sempre entre duas pessoas: ninguém paga a dívida de outro.'
+              : 'Neste grupo as dívidas não se compensam: cada gasto é pago separado. Dá para ligar o abatimento nos ajustes do grupo.'
+          }
+        />
+
         <Abas
           opcoes={[
             ['dividas', 'Dívidas'],
@@ -241,14 +256,48 @@ export default function TelaGrupo() {
                 ['lista', 'Lista'],
                 ['pessoas', 'Por pessoa'],
                 ['grafico', 'Gráfico'],
+                ['conferir', 'Conferir'],
               ]}
               valor={visao}
               aoMudar={setVisao}
             />
+            {visao === 'lista' && listaPendencias.some((p) => p.devedor === eu || p.credor === eu) ? (
+              <Dica
+                id="dividas-paguei"
+                titulo="Acertou? Toque em Paguei"
+                texto="Quando pagar ou receber, toque em Paguei (ou Recebi). O botão do QR mostra a chave Pix e o código com o valor certo. Tocar na linha abre o extrato com a pessoa."
+              />
+            ) : null}
+            {visao === 'conferir' ? (
+              <Dica
+                id="conferir"
+                titulo="Confira linha por linha"
+                texto="Escolha uma pessoa para ver cada gasto e pagamento que formou o saldo entre vocês, com o saldo depois de cada um."
+              />
+            ) : null}
             {pendencias.isPending ? (
               <Esqueleto comResumo={false} />
+            ) : visao === 'conferir' ? (
+              <Conferir
+                key={pessoaExtrato ?? 'conferir'}
+                grupoId={g.id}
+                abatimento={g.abatimento}
+                membros={membros.data}
+                pendencias={listaPendencias}
+                eu={eu}
+                nome={nome}
+                pessoaInicial={pessoaExtrato}
+                aoAbrirGasto={(gastoId) =>
+                  router.push({ pathname: '/grupo/[id]/gasto', params: { id: g.id, gastoId } })
+                }
+              />
             ) : visao === 'lista' ? (
               <ListaDeDividas
+                aoPix={setPix}
+                aoVerExtrato={(outro) => {
+                  setPessoaExtrato(outro);
+                  setVisao('conferir');
+                }}
                 pendencias={listaPendencias}
                 eu={eu}
                 nome={nome}
@@ -319,6 +368,13 @@ export default function TelaGrupo() {
 
         {aba === 'historico' ? <Historico registros={historico.data ?? []} nome={nome} /> : null}
       </Tela>
+      <PagarComPix
+        credor={pix?.credor ?? null}
+        nomeCredor={pix ? nome(pix.credor) : ''}
+        valor={pix?.valor ?? new Decimal(0)}
+        aoFechar={() => setPix(null)}
+        aoMarcarPago={() => pix && pagar(pix)}
+      />
     </CoresDoGrupo>
   );
 }

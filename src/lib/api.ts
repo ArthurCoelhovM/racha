@@ -535,3 +535,99 @@ export async function lerNotaFiscal(url: string): Promise<Nota> {
   }
   throw new Error(mensagem);
 }
+
+// ---------------------------------------------------------------
+// Conferir as contas
+// ---------------------------------------------------------------
+
+export type LinhaExtrato = {
+  tipo: 'gasto' | 'pagamento';
+  data: string;
+  criado_em: string;
+  gasto_id: string | null;
+  descricao: string | null;
+  valor_total: string;
+  efeito: string;
+};
+
+// cada movimento entre você e outra pessoa; efeito > 0 quer dizer que você passou a dever mais
+export async function extratoCom(grupoId: string, outro: string): Promise<LinhaExtrato[]> {
+  const linhas = checar(await supabase.rpc('extrato_com', { p_grupo: grupoId, p_outro: outro }));
+  return linhas.map((l) => ({
+    ...l,
+    tipo: l.tipo as LinhaExtrato['tipo'],
+    valor_total: String(l.valor_total),
+    efeito: String(l.efeito),
+  }));
+}
+
+export type PontoParaOlhar = {
+  tipo: 'nao_fecha' | 'duplicado' | 'futuro' | 'sem_valor' | 'pagamento_maior';
+  gasto_id: string | null;
+  descricao: string;
+  data: string;
+  detalhe: string;
+};
+
+export async function conferirGrupo(grupoId: string): Promise<PontoParaOlhar[]> {
+  const linhas = checar(await supabase.rpc('conferir_grupo', { p_grupo: grupoId }));
+  return linhas.map((l) => ({ ...l, tipo: l.tipo as PontoParaOlhar['tipo'] }));
+}
+
+// ---------------------------------------------------------------
+// Pix e primeiros passos
+// ---------------------------------------------------------------
+
+export async function salvarChavePix(id: string, chave: string | null): Promise<void> {
+  semErro(await supabase.from('perfis').update({ chave_pix: chave }).eq('id', id));
+}
+
+export async function minhaChavePix(id: string): Promise<string | null> {
+  const linha = checar(await supabase.from('perfis').select('chave_pix').eq('id', id).single());
+  return linha.chave_pix;
+}
+
+// a chave de quem vai receber; null se a pessoa ainda não cadastrou
+export async function chavePixDe(usuarioId: string): Promise<{ nome: string; chave: string | null }> {
+  const linha = checar(await supabase.from('perfis').select('nome, chave_pix').eq('id', usuarioId).maybeSingle());
+  return { nome: linha.nome, chave: linha.chave_pix };
+}
+
+export type PrimeirosPassos = {
+  tem_grupo: boolean;
+  convidou: boolean;
+  registrou_gasto: boolean;
+  marcou_pagamento: boolean;
+};
+
+export async function primeirosPassos(): Promise<PrimeirosPassos> {
+  return checar(await supabase.rpc('primeiros_passos')) as unknown as PrimeirosPassos;
+}
+
+// ---------------------------------------------------------------
+// Gastos de todos os grupos (aba Gastos)
+// ---------------------------------------------------------------
+
+export type GastoComGrupo = Gasto & { grupo: { nome: string; cor: string } };
+
+export async function paginaDeMeusGastos(inicio: number, quantos: number): Promise<GastoComGrupo[]> {
+  const linhas = checar(
+    await supabase
+      .from('gastos')
+      .select(`${CAMPOS_GASTO}, grupo:grupos(nome, cor)`)
+      .order('data', { ascending: false })
+      .order('criado_em', { ascending: false })
+      .order('id')
+      .range(inicio, inicio + quantos - 1),
+  );
+  return linhas.map((g) => ({
+    ...paraGasto(g as unknown as LinhaGasto),
+    grupo: (g as unknown as { grupo: { nome: string; cor: string } | null }).grupo ?? { nome: 'Grupo', cor: '#6B6E85' },
+  }));
+}
+
+// nomes de todo mundo que divide algum grupo com você
+export async function nomesConhecidos(): Promise<Map<string, string>> {
+  const linhas = checar(await supabase.from('perfis').select('id, nome'));
+  return new Map(linhas.map((p) => [p.id, p.nome || 'Alguém']));
+}
