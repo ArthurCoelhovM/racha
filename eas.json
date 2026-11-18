@@ -10,7 +10,7 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://nhsglhdifpozrpotxypr.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_ZJKcoh-5O7p8xNezgVqWYQ_BfKEgix6",
-        "EXPO_PUBLIC_SITE_URL": "https://super-organizador-3021.vercel.app",
+        "EXPO_PUBLIC_SITE_URL": "https://racha-3021.vercel.app",
         "EXPO_PUBLIC_VAPID_PUBLIC_KEY": "BGqt5-20p4G2TUosFVyGs0JwxPQZDs330VwkljspoPG0UDchlT0RlpFOjKvxU8Tdo5IeOXkS_Lp21j7ZLb2XK4Y",
         "EXPO_PUBLIC_CONTATO_PRIVACIDADE": "arthurmuhlen@gmail.com"
       },

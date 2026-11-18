@@ -61,7 +61,7 @@ public/                  manifesto e ícones da versão web
 | Parte | Onde | Situação |
 | --- | --- | --- |
 | Banco, login e funções | Supabase, projeto `super-organizador-3021` (São Paulo, ref `nhsglhdifpozrpotxypr`) | No ar |
-| Site (iPhone e navegador) | Vercel, `super-organizador-3021.vercel.app` | No ar, publica sozinho a cada envio para `main` |
+| Site (iPhone e navegador) | Vercel, `racha-3021.vercel.app` (o endereço antigo `super-organizador-3021.vercel.app` continua funcionando) | No ar, publica sozinho a cada envio para `main` |
 | APK do Android | Expo (EAS), conta `coelho_von`, workflow **Publicar** | Gerado pelo workflow (segredo `EXPO_TOKEN` no GitHub) |
 
 Detalhes da produção:

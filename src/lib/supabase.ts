@@ -26,9 +26,11 @@ if (Platform.OS !== 'web') {
   });
 }
 
+// no site, os links (convite, recuperar senha) usam o endereço em que a pessoa está;
+// no app, o endereço publicado
 export function urlDoSite(caminho: string): string | undefined {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') return window.location.origin + caminho;
   const base = process.env.EXPO_PUBLIC_SITE_URL;
   if (base) return base.replace(/\/$/, '') + caminho;
-  if (Platform.OS === 'web' && typeof window !== 'undefined') return window.location.origin + caminho;
   return undefined;
 }
