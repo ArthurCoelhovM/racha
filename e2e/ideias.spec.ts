@@ -4,10 +4,10 @@ import { aba, api, botao, CHAVE, criarPessoa, entrar, SUPABASE_URL, texto } from
 
 const sufixo = `${Date.now()}`;
 
+// a data no fuso de São Paulo, o mesmo do navegador do teste (em UTC, depois das 21h já seria amanhã)
 function hojeMenos(dias: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - dias);
-  return d.toISOString().slice(0, 10);
+  const d = new Date(Date.now() - dias * 86_400_000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
 }
 
 test('conferir as contas, Pix, barra de baixo, pagamento parcial, sugestões e primeiros passos', async ({ page }) => {
