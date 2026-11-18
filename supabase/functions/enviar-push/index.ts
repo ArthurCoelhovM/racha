@@ -12,7 +12,7 @@ const segredo = Deno.env.get('PUSH_WEBHOOK_SEGREDO') ?? '';
 const urlExpo = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send';
 const vapidPublica = Deno.env.get('VAPID_CHAVE_PUBLICA') ?? '';
 const vapidPrivada = Deno.env.get('VAPID_CHAVE_PRIVADA') ?? '';
-const vapidContato = Deno.env.get('VAPID_CONTATO') ?? 'mailto:contato@superorganizador.app';
+const vapidContato = Deno.env.get('VAPID_CONTATO') ?? 'mailto:arthurmuhlen@gmail.com';
 
 if (vapidPublica && vapidPrivada) webpush.setVapidDetails(vapidContato, vapidPublica, vapidPrivada);
 

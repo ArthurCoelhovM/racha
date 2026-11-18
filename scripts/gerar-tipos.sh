@@ -5,7 +5,7 @@
 set -euo pipefail
 
 pasta="$(cd "$(dirname "$0")/.." && pwd)"
-banco="tipos_organizador"
+banco="tipos_racha"
 
 psql -q -d postgres -c "drop database if exists $banco" -c "create database $banco"
 psql -q -v ON_ERROR_STOP=1 -d "$banco" -f "$pasta/supabase/testes/00_simular_supabase.sql"

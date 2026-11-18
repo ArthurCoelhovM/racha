@@ -1,5 +1,5 @@
 # Configuração usada pela CLI do Supabase (workflow Publicar)
-project_id = "super-organizador-3021"
+project_id = "racha"
 
 # O projeto assina os logins com chaves ECC (JWT Signing Keys), que a verificação
 # "legacy secret" do gateway não aceita. Por isso ler-nfce e excluir-conta conferem

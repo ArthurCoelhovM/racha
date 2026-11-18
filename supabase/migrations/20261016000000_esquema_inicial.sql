@@ -1,4 +1,4 @@
--- Super Organizador 3021 — esquema inicial
+-- Racha — esquema inicial
 -- Valores exatos em numeric; o arredondamento para cima acontece só na cobrança.
 
 -- ---------------------------------------------------------------
